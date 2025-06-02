@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <title>Markdown 展示与编辑</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/themes/prism.min.css"
+        integrity="sha384-rCCjoCPCsizaAAYVoz1Q0CmCTvnctK0JkfCSjx7IIxexTBg+uCKtFYycedUjMyA2" 
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css"
+        integrity="sha384-5TcZemv2l/9On385z///+d7MSYlvIEw9FuZTIdZ14vJLqWphw7e7ZPuOiCHJcFCP" 
+        crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500&display=swap"
+        rel="stylesheet">
+
+  <style>
+    :root {
+      /* 亮色模式 (默认) */
+      --bg-color: #f5f5f7;
+      --text-color: #1d1d1f;
+      --text-color-secondary: #555;
+      --content-bg: #ffffff;
+      --border-color: #d2d2d7;
+      --primary-color: #0071e3;
+      --primary-color-hover: #0077ed;
+      --button-text-color: #ffffff;
+      --button-lock-bg: #d2d2d7;
+      --code-bg: #f0f0f5;
+      --code-text-color: #1d1d1f;
+      --copy-btn-bg: rgba(0, 0, 0, 0.1);
+      --copy-btn-hover-bg: rgba(0, 0, 0, 0.2);
+      --copy-btn-active-bg: rgba(0, 0, 0, 0.3);
+      --copy-btn-copied-bg: #28a745;
+      --copy-btn-text-color: #555;
+      --toast-bg: rgba(0, 0, 0, 0.8);
+      --progress-track-bg: rgba(0, 0, 0, 0.05);
+      --progress-bar-bg: linear-gradient(90deg, #0071e3, #00a1e4);
+      --shadow-color: rgba(0,0,0,0.05);
+      --toolbar-bg: #ffffff; 
+      --toolbar-shadow: rgba(0,0,0,0.1); 
+      --select-bg: #ffffff;
+      --select-border: #d2d2d7;
+      --sidebar-text-color: #343a40;
+      --sidebar-link-hover-bg: #dee2e6;
+      --sidebar-link-active-bg: var(--primary-color);
+      --sidebar-link-active-color: #ffffff;
+      --sidebar-title-color: var(--primary-color);
+      --input-bg: #fff;
+      --input-border: #ccc;
+    }
+
+    body.dark-mode {
+      --bg-color: #161617;
+      --text-color: #e2e2e2;
+      --text-color-secondary: #a0a0a0;
+      --content-bg: #1e1e1e;
+      --border-color: #444444;
+      --primary-color: #0a84ff;
+      --primary-color-hover: #3f9cff;
+      --button-text-color: #ffffff;
+      --button-lock-bg: #555555;
+      --code-bg: #2c2d2f;
+      --code-text-color: #d0d0d0;
+      --copy-btn-bg: rgba(255, 255, 255, 0.1);
+      --copy-btn-hover-bg: rgba(255, 255, 255, 0.2);
+      --copy-btn-active-bg: rgba(255, 255, 255, 0.3);
+      --copy-btn-copied-bg: #34c759;
+      --copy-btn-text-color: #ccc;
+      --toast-bg: rgba(40, 40, 40, 0.9);
+      --progress-track-bg: rgba(255, 255, 255, 0.1);
+      --progress-bar-bg: linear-gradient(90deg, var(--primary-color), #3f9cff);
+      --shadow-color: rgba(0,0,0,0.3);
+      --toolbar-bg: #2c2d2f; 
+      --toolbar-shadow: rgba(0,0,0,0.3); 
+      --select-bg: #2c2d2f;
+      --select-border: #555555;
+      --sidebar-text-color: #adb5bd;
+      --sidebar-link-hover-bg: #343a40;
+      --sidebar-link-active-bg: var(--primary-color);
+      --sidebar-link-active-color: #ffffff;
+      --sidebar-title-color: var(--primary-color);
+      --input-bg: #2c2d2f;
+      --input-border: #555;
+    }
+
+    body {
+      font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+      margin:0;
+      background: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.6;
+      transition: background-color 0.3s, color 0.3s;
+      display: flex;
+      min-height: 100vh;
+      overflow: hidden; 
+    }
+
+    .page-container {
+        display: flex;
+        flex-grow: 1;
+        overflow-x: hidden; 
+    }
+
+    #sidebar {
+        width: 280px;
+        min-width: 280px; 
+        background: var(--toolbar-bg); 
+        box-shadow: var(--toolbar-shadow); 
+        border-radius: 12px; 
+        padding: 20px;
+        box-sizing: border-box;
+        position: fixed; 
+        left: 20px;
+        top: 20px;
+        height: calc(100vh - 40px); 
+        z-index: 999; 
+        overflow-y: auto;
+        transition: transform 0.3s ease-in-out;
+        flex-shrink: 0;
+        display: block; 
+    }
+
+    #sidebar.collapsed {
+        transform: translateX(-120%);
+    }
+     #sidebar.collapsed-immediately { 
+        display: none !important; 
+        transform: translateX(-120%);
+    }
+
+
+    .sidebar-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--sidebar-title-color);
+        margin-top: 0;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+        transition: color 0.3s, border-color 0.3s;
+    }
+
+    #toc-search {
+        width: calc(100% - 2px); 
+        margin-bottom: 1em;
+        padding: 0.5em;
+        border-radius: 4px;
+        border: 1px solid var(--input-border);
+        background-color: var(--input-bg);
+        color: var(--text-color);
+        box-sizing: border-box;
+    }
+
+    #nav-links-ul { list-style-type: none; padding: 0; margin: 0; }
+    #nav-links-ul .nav-link { display: block; padding: 0.6rem 1rem; border-radius: 0.375rem; color: var(--sidebar-text-color); text-decoration: none; font-size: 0.9rem; margin-bottom: 0.25rem; transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #nav-links-ul .nav-link:hover { background-color: var(--sidebar-link-hover-bg); color: var(--text-color); }
+    #nav-links-ul .nav-link.active { background-color: var(--sidebar-link-active-bg); color: var(--sidebar-link-active-color); font-weight: 500; }
+    #nav-links-ul .nav-link.h1 { padding-left: 1rem; font-weight: 500; }
+    #nav-links-ul .nav-link.h2 { padding-left: 1.5rem; }
+    #nav-links-ul .nav-link.h3 { padding-left: 2rem; font-size: 0.85rem;}
+    #nav-links-ul .nav-link.h4 { padding-left: 2.5rem; font-size: 0.8rem; color: var(--text-color-secondary); }
+    #nav-links-ul .nav-link.h5 { padding-left: 3rem; font-size: 0.75rem; color: var(--text-color-secondary); }
+    #nav-links-ul .nav-link.h6 { padding-left: 3.5rem; font-size: 0.7rem; color: var(--text-color-secondary); }
+
+    .main-content-area {
+        flex-grow: 1;
+        padding: 20px;
+        padding-left: 20px; 
+        overflow-y: auto;
+        scroll-behavior: smooth; /* Applied here so scrollIntoView uses it */
+        margin-left: 0; 
+        transition: padding-left 0.3s ease-in-out; 
+        box-sizing: border-box;
+        height: 100vh; 
+    }
+    .main-content-area.sidebar-active {
+      padding-left: calc(280px + 20px + 20px); 
+    }
+
+
+    #content { max-width:800px; margin:0 auto; background: var(--content-bg); padding:30px; border-radius:12px; box-shadow:0 4px 20px var(--shadow-color); transition: background-color 0.3s; min-height: 50px; }
+    #content h1, #content h2, #content h3, #content h4, #content h5, #content h6 { scroll-margin-top: 80px; } 
+
+    .toolbar { background: var(--toolbar-bg); box-shadow:var(--toolbar-shadow); position:fixed; right:20px; top:50%; transform:translateY(-50%); padding:15px; border-radius:12px; display:flex; flex-direction:column; gap:10px; z-index:1000; transition: background-color 0.3s; }
+    .tool-btn { background: var(--primary-color); color: var(--button-text-color); border:none; border-radius:8px; padding:10px 15px; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content: center; gap:8px; transition: background-color .2s, color .2s, opacity .2s; white-space: nowrap; }
+    .tool-btn .icon { font-size: 1.1em; }
+    .tool-btn:hover { background: var(--primary-color-hover); }
+    .tool-btn.lock { background: var(--button-lock-bg); color: var(--text-color-secondary); }
+    #back-to-top-btn { display: none; } 
+
+    .file-selector { margin: 0 auto 20px auto; max-width: 800px; display:flex; align-items:center; gap:10px; }
+    #file-select { flex-grow: 1; padding:10px 15px; border-radius:8px; border:1px solid var(--border-color); background:var(--select-bg); color: var(--text-color); font-size: 14px; transition: background-color 0.3s, border-color 0.3s, color 0.3s; }
+    #edit-area { width: calc(100% - 30px); max-width: 800px; min-height:400px; margin: 0 auto; display: none; padding:15px; border:1px solid var(--border-color); background: var(--content-bg); color: var(--text-color); border-radius:8px; resize:vertical; font-family: monospace; font-size: 14px; line-height: 1.5; transition: background-color 0.3s, border-color 0.3s, color 0.3s; }
+    .progress-container { background: var(--progress-track-bg); position:fixed; top:0; left:0; width:100%; height:4px; display:none; z-index:2000; }
+    .progress-bar { background: var(--progress-bar-bg); height:100%; width:0; transition:width 0.3s; }
+    .toast { background: var(--toast-bg); color:#fff; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); padding:10px 20px; border-radius:20px; font-size:13px; opacity:0; transition:opacity 0.3s, bottom 0.3s; z-index:3000; pointer-events: none; white-space: nowrap; }
+    .toast.show { opacity:1; bottom: 30px; }
+    #content pre { background-color: var(--code-bg); padding: 15px; border-radius: 8px; overflow-x: auto; position: relative; margin-bottom: 1.5em; border: 1px solid var(--border-color); transition: background-color 0.3s, border-color 0.3s; }
+    #content pre code { background: none !important; padding: 0; color: var(--code-text-color); text-shadow: none; font-size: 0.9em; transition: color 0.3s; }
+    .copy-code-button { background-color: var(--copy-btn-bg); color: var(--copy-btn-text-color); position: absolute; top: 8px; right: 8px; border: none; border-radius: 5px; padding: 4px 8px; font-size: 12px; cursor: pointer; opacity: 0.3; transition: opacity 0.2s, background-color 0.2s; z-index: 1; }
+    #content pre:hover .copy-code-button { opacity: 1; }
+    .copy-code-button:hover { background-color: var(--copy-btn-hover-bg); }
+    .copy-code-button:active { background-color: var(--copy-btn-active-bg); }
+    .copy-code-button.copied { background-color: var(--copy-btn-copied-bg); color: white; opacity: 1; }
+    #content img { max-width: 100%; height: auto; display: block; margin: 1.5em auto; cursor: pointer; border-radius: 6px; box-shadow: 0 2px 8px var(--shadow-color); background-color: var(--content-bg); transition: background-color 0.3s, box-shadow 0.3s; }
+    .katex-display { margin: 1em 0; overflow-x: auto; white-space: nowrap; box-sizing: border-box; padding: 0.5em 0; }
+    body.dark-mode .katex { color: var(--text-color); }
+    body.dark-mode .katex-display { color: var(--text-color); }
+    #theme-toggle-btn .text-content { margin-left: 5px; }
+    .mermaid { text-align: center; margin-bottom: 1.5em; background-color: var(--content-bg); border-radius: 8px;}
+    #content canvas { max-width: 100%; margin: 1.5em auto; display: block; background-color: var(--content-bg); border-radius: 8px; padding: 10px; box-sizing: border-box; }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <nav id="sidebar">
+        <h1 class="sidebar-title">目录</h1>
+        <input type="text" id="toc-search" placeholder="搜索章节…">
+        <ul id="nav-links-ul"></ul>
+    </nav>
+
+    <main class="main-content-area">
+        <div class="file-selector">
+            <label for="file-select">选择文件：</label>
+            <select id="file-select">
+            {% if not files %}
+            <option value="">无可用文件</option>
+            {% else %}
+                {% for f in files %}
+                <option value="{{ f }}" {% if f == current_file %}selected{% endif %}>{{ f }}</option>
+                {% endfor %}
+            {% endif %}
+            </select>
+        </div>
+        <div id="content"></div>
+        <textarea id="edit-area" spellcheck="false"></textarea>
+    </main>
+  </div>
+
+  <div class="progress-container" id="progress-container"> <div class="progress-bar" id="progress-bar"></div> </div>
+  <div class="toast" id="toast"></div>
+
+  <div class="toolbar">
+    <button id="toggle-toc-btn" class="tool-btn"><span class="icon">📖</span> <span class="text-content">显示目录</span></button>
+    <button id="edit-btn" class="tool-btn lock"><span class="icon">🔓</span> <span class="text-content">解锁编辑</span></button>
+    <button id="copy-btn" class="tool-btn"><span class="icon">📋</span> <span class="text-content">复制全文</span></button>
+    <button id="save-btn" class="tool-btn" style="display:none;"><span class="icon">💾</span> <span class="text-content">保存</span></button>
+    <button id="screenshot-content-btn" class="tool-btn"><span class="icon">📷</span> <span class="text-content">截取内容</span></button>
+    <button id="theme-toggle-btn" class="tool-btn"> <span class="icon">☀️</span> <span class="text-content">切换模式</span> </button>
+    <button id="back-to-top-btn" class="tool-btn"><span class="icon">⬆️</span> <span class="text-content">回顶部</span></button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js" integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/prism.min.js" integrity="sha384-guvyurEPUUeAKyomgXWf/3v1dYx+etnMZ0CeHWsUXSqT1sRwh4iLpr9Z+Lw631fX" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/plugins/autoloader/prism-autoloader.min.js" integrity="sha384-Uq05+JLko69eOiPr39ta9bh7kld5PKZoU+fF7g0EXTAriEollhZ+DrN8Q/Oi8J2Q" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js" integrity="sha384-cMkvdD8LoxVzGF/RPUKAcvmm49FQ0oxwDF3BGKtDXcEc+T1b2N+teh/OJfpU0jr6" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/contrib/auto-render.min.js" integrity="sha384-hCXGrW6PitJEwbkoStFjeJxv+fSOOQKOPbJxSfM6G5sWZjAyWhXiTIIAmQqnlLlh" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js" integrity="sha384-R63zfMfSwJF4xCR11wXii+QUsbiBIdiDzDbtxia72oGWfkT7WHJfmD/I/eeHPJyT" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" integrity="sha384-b0GXujLkk9eYYSmcSfoyZbfyElGAQnDyY0skCHSG6w3JgTMFnz11ggrTAr7seu9f" crossorigin="anonymous"></script>
+
+  <script>
+    if (typeof mermaid !== 'undefined') {
+        mermaid.initialize({ startOnLoad: false, theme: 'default', fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" });
+    } else {
+        console.warn("中文警告：Mermaid 库未加载。Mermaid 图表将不会渲染。");
+    }
+
+    let markdownText = {{ content|tojson|safe }}; 
+    if (markdownText === null || typeof markdownText === 'undefined') {
+        console.warn("中文警告：初始的 markdownText 是 null 或 undefined。已默认为空字符串。");
+        markdownText = "";
+    } else if (typeof markdownText !== 'string') {
+        console.warn(`中文警告：初始的 markdownText 类型为 ${typeof markdownText}，而非字符串。已尝试转换为字符串。`);
+        try { markdownText = String(markdownText); } catch (e) {
+            console.error("中文错误：转换 markdownText 为字符串失败，已默认为空字符串。", e);
+            markdownText = "";
+        }
+    }
+
+    let isEditing = false;
+    let toastTimeout;
+
+    const contentDiv = document.getElementById('content');
+    const editArea = document.getElementById('edit-area');
+    const fileSelect = document.getElementById('file-select');
+    const editBtn = document.getElementById('edit-btn');
+    const copyBtn = document.getElementById('copy-btn');
+    const saveBtn = document.getElementById('save-btn');
+    const screenshotContentBtn = document.getElementById('screenshot-content-btn');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const toast = document.getElementById('toast');
+    const themeToggleButton = document.getElementById('theme-toggle-btn');
+    const themeToggleButtonIcon = themeToggleButton.querySelector('.icon');
+    const navLinksUl = document.getElementById('nav-links-ul');
+    const mainContentArea = document.querySelector('.main-content-area');
+    const sidebar = document.getElementById('sidebar');
+    const toggleTocBtn = document.getElementById('toggle-toc-btn');
+    const toggleTocBtnText = toggleTocBtn.querySelector('.text-content');
+    const toggleTocBtnIcon = toggleTocBtn.querySelector('.icon');
+    const backToTopBtn = document.getElementById('back-to-top-btn');
+    const tocSearchInput = document.getElementById('toc-search');
+
+    function getCurrentTheme() { return localStorage.getItem('theme') || 'light'; }
+    function applyTheme(theme) {
+        document.body.classList.toggle('dark-mode', theme === 'dark');
+        document.documentElement.setAttribute('data-theme', theme);
+        themeToggleButtonIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+        localStorage.setItem('theme', theme);
+    }
+    function toggleTheme() {
+        const newTheme = getCurrentTheme() === 'dark' ? 'light' : 'dark';
+        applyTheme(newTheme);
+        if (contentDiv.querySelector('.mermaid')) {
+             showToast('主题已切换。Mermaid 图表可能需要手动刷新页面以更新主题。');
+        }
+    }
+    themeToggleButton.addEventListener('click', toggleTheme);
+
+    function slugify(text) {
+        if (!text) return 'toc-item';
+        return text.toString().toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^\w-]+/g, '')
+            .replace(/--+/g, '-')
+            .replace(/^-+/, '')
+            .replace(/-+$/, '');
+    }
+
+    let currentNavLinks = [];
+    let currentSections = [];
+
+    function updateNavigation() {
+        navLinksUl.innerHTML = '';
+        const headings = contentDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        currentSections = Array.from(headings);
+        currentNavLinks = [];
+        headings.forEach((heading, index) => {
+            const text = heading.textContent.trim();
+            // Ensure heading has an ID, generate if not present
+            let id = heading.id;
+            if (!id) { 
+                id = `toc-<span class="math-inline">\{slugify\(text\)\}\-</span>{index}`; 
+                heading.id = id; 
+            }
+            // 'id' now reliably refers to the heading's actual ID attribute
+
+            const listItem = document.createElement('li');
+            const link = document.createElement('a');
+            link.href = `#${id}`; // Use the heading's actual ID for the href
+            link.textContent = text || `章节 ${index + 1}`;
+            link.classList.add('nav-link', heading.tagName.toLowerCase());
+            
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href').substring(1); // Get ID from href
+                const targetElement = document.getElementById(targetId); // Find element by this ID
+                if (targetElement) {
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    console.warn(`中文警告：目录跳转：未找到ID为 "${targetId}" 的元素。`);
+                }
+            });
+            listItem.appendChild(link);
+            navLinksUl.appendChild(listItem);
+            currentNavLinks.push(link);
+        });
+        setActiveNavLink(); 
+        if (tocSearchInput) tocSearchInput.dispatchEvent(new Event('input'));
+    }
+
+    function setActiveNavLink() {
+        if (!currentNavLinks.length || !mainContentArea) {
+            (currentNavLinks || []).forEach(link => link.classList.remove('active'));
+            return;
+        }
+
+        const scrollPosition = mainContentArea.scrollTop;
+        const activationOffset = 80; 
+        let activeIndex = -1;
+
+        for (let i = currentSections.length - 1; i >= 0; i--) {
+            const section = currentSections[i];
+            const sectionActualTop = (contentDiv.offsetTop + section.offsetTop); // Top relative to mainContentArea's scrollable region
+            if (sectionActualTop <= scrollPosition + activationOffset) {
+                activeIndex = i;
+                break;
+            }
+        }
+        
+        currentNavLinks.forEach((link, index) => {
+            link.classList.toggle('active', index === activeIndex);
+        });
+    }
+
+
+    async function renderContent(mdTextToRender) {
+        console.log("中文日志：renderContent - 开始。检查 MarkedJS...");
+        if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
+            console.error("中文错误：Marked 库或 parse 方法未定义。");
+            contentDiv.innerHTML = "<p style='color:red; font-weight:bold;'>关键错误：Markdown核心解析库 (Marked.js) 未加载或初始化失败。页面无法显示内容。请检查网络连接、浏览器控制台的SRI错误或脚本链接。</p>";
+            updateNavigation(); 
+            return;
+        }
+        console.log("中文日志：MarkedJS 已加载。开始解析 Markdown...");
+        try {
+            contentDiv.innerHTML = marked.parse(mdTextToRender);
+            console.log("中文日志：Markdown 解析完成。");
+        } catch (e) {
+            console.error("中文错误：Markdown 解析时出错。", e);
+            contentDiv.innerHTML = "<p>错误：渲染 Markdown 内容时发生解析错误。</p>";
+            updateNavigation();
+            return;
+        }
+
+        const mermaidElements = contentDiv.querySelectorAll('code.language-mermaid');
+        if (mermaidElements.length > 0) {
+            if (typeof mermaid !== 'undefined' && typeof mermaid.run === 'function') {
+                console.log(`中文日志：找到 ${mermaidElements.length} 个 Mermaid 块，尝试渲染。`);
+                mermaidElements.forEach((element, i) => {
+                    const pre = element.parentElement;
+                    if (pre && pre.tagName === 'PRE') {
+                        const mermaidContainer = document.createElement('div');
+                        mermaidContainer.id = `mermaid-graph-<span class="math-inline">\{Date\.now\(\)\}\-</span>{i}`;
+                        mermaidContainer.className = 'mermaid';
+                        mermaidContainer.setAttribute('data-processed', 'false'); 
+                        mermaidContainer.textContent = element.textContent || '';
+                        pre.parentNode.replaceChild(mermaidContainer, pre);
+                    }
+                });
+                try {
+                    await mermaid.run({ nodes: contentDiv.querySelectorAll('div.mermaid[data-processed="false"]') });
+                    contentDiv.querySelectorAll('div.mermaid[data-processed="false"]').forEach(el => el.setAttribute('data-processed', 'true'));
+                } catch (e) {
+                    console.error("中文错误：Mermaid.run() 执行失败。", e);
+                    showToast(`Mermaid 图表渲染失败: ${e.message}`);
+                }
+            } else { console.warn("中文警告：找到 Mermaid 代码块，但 Mermaid 库或 run 方法未加载。"); }
+        }
+
+        const chartElements = contentDiv.querySelectorAll('code.language-chart');
+        if (chartElements.length > 0) {
+            if (typeof Chart !== 'undefined') {
+                console.log(`中文日志：找到 ${chartElements.length} 个 Chart.js 块，尝试渲染。`);
+                chartElements.forEach((element, i) => {
+                    const pre = element.parentElement;
+                    if (pre && pre.tagName === 'PRE') {
+                        const chartContainer = document.createElement('div');
+                        chartContainer.style.maxWidth = '600px'; chartContainer.style.margin = '1em auto';
+                        const canvas = document.createElement('canvas');
+                        canvas.id = `chart-canvas-<span class="math-inline">\{Date\.now\(\)\}\-</span>{i}`;
+                        chartContainer.appendChild(canvas);
+                        pre.parentNode.replaceChild(chartContainer, pre);
+                        try {
+                            const chartConfigStr = element.textContent || '{}';
+                            const chartConfig = JSON.parse(chartConfigStr);
+                            new Chart(canvas, chartConfig);
+                        } catch (e) {
+                            console.error(`中文错误：解析 Chart.js 配置或创建图表 #${i+1} 失败。`, e, "Config string:", element.textContent);
+                            showToast(`图表 ${i+1} 渲染失败: ${e.message}`);
+                            canvas.outerHTML = `<p style="color:red; text-align:center;">图表 ${i+1} 配置错误: ${e.message}</p>`;
+                        }
+                    }
+                });
+            } else { console.warn("中文警告：找到 Chart.js 代码块，但 Chart 库未加载。"); }
+        }
+
+        if (window.Prism && typeof Prism.highlightAllUnder === 'function') {
+            try { Prism.highlightAllUnder(contentDiv); } catch (e) { console.error("中文错误：Prism 代码高亮失败。", e); }
+        } else { console.warn("中文警告：Prism 库或 highlightAllUnder 方法不可用。"); }
+
+        addCopyButtons();
+
+        if (window.renderMathInElement && typeof renderMathInElement === 'function') {
+            try { renderMathInElement(contentDiv, { delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}], throwOnError: false }); } catch (e) { console.error("中文错误：KaTeX 数学公式渲染失败。", e); }
+        } else { console.warn("中文警告：KaTeX renderMathInElement 不可用。"); }
+
+        updateNavigation();
+        console.log("中文日志：内容渲染及增强完成。");
+     }
+
+    function addCopyButtons() {
+        const preBlocks = contentDiv.querySelectorAll('pre');
+        preBlocks.forEach(pre => {
+            if (pre.querySelector('.copy-code-button') || pre.classList.contains('mermaid') || pre.querySelector('canvas')) return; 
+
+            const codeBlock = pre.querySelector('code');
+            if (!codeBlock || codeBlock.classList.contains('language-mermaid') || codeBlock.classList.contains('language-chart')) return;
+
+            const button = document.createElement('button');
+            button.textContent = 'Copy';
+            button.className = 'copy-code-button';
+            button.addEventListener('click', () => {
+                const codeToCopy = codeBlock.innerText;
+                navigator.clipboard.writeText(codeToCopy).then(() => {
+                    button.textContent = 'Copied!'; button.classList.add('copied');
+                    setTimeout(() => { button.textContent = 'Copy'; button.classList.remove('copied'); }, 2000);
+                    showToast('代码已复制');
+                }).catch(err => {
+                    console.error('复制代码失败: ', err); showToast('复制失败，请检查权限或手动复制。');
+                });
+            });
+            pre.appendChild(button);
+        });
+    }
+    function showToast(msg, duration = 2500) {
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toast.textContent = msg; toast.classList.add('show');
+        toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration);
+    }
+    function updateProgress(percent) { progressBar.style.width = `${percent}%`; }
+
+    fileSelect.addEventListener('change', () => {
+        const fn = fileSelect.value;
+        console.log(`中文调试：FileSelect - 监听到 change 事件，选择的文件: ${fn}`);
+        if (!fn) {
+            console.log("中文调试：FileSelect - 文件名为空，操作中止。");
+            return;
+        }
+        showToast(`正在加载 ${fn}...`);
+        progressContainer.style.display = 'block'; updateProgress(10);
+        console.log(`中文调试：FileSelect - 发起 fetch 请求到 /switch_file 获取 ${fn}`);
+        fetch('/switch_file', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `filename=${encodeURIComponent(fn)}`})
+        .then(response => {
+            console.log(`中文调试：FileSelect -收到 fetch 响应，状态: ${response.status}`);
+            updateProgress(50);
+            if (!response.ok) { return response.json().then(err => { throw new Error(err.error || `服务器错误 ${response.status}`); }).catch(() => { throw new Error(`加载文件失败，响应: ${response.status} ${response.statusText}`); }); }
+            return response.json();
+        })
+        .then(data => {
+            console.log("中文调试：FileSelect - 从服务器获取到的数据:", data);
+            markdownText = data.content || "";
+            if (typeof markdownText !== 'string') markdownText = String(markdownText);
+            console.log("中文调试：FileSelect - markdownText 已更新。");
+
+            if (isEditing) { 
+                editArea.value = markdownText; 
+                console.log("中文调试：FileSelect - 当前为编辑模式，已更新 textarea。");
+            } else { 
+                renderContent(markdownText); 
+                console.log("中文调试：FileSelect - 当前为阅读模式，已调用 renderContent。");
+            }
+            document.title = `Markdown - ${fn}`;
+            history.replaceState(null, '', `/?file=${encodeURIComponent(fn)}`);
+            updateProgress(100);
+            setTimeout(() => { progressContainer.style.display = 'none'; progressBar.style.width = '0%'; }, 300);
+            showToast(`${fn} 加载完成`);
+            if(mainContentArea) mainContentArea.scrollTop = 0;
+            console.log(`中文调试：FileSelect - 文件 ${fn} 处理完成。`);
+        })
+        .catch(error => {
+            progressContainer.style.display = 'none'; progressBar.style.width = '0%';
+            showToast(`加载文件 ${fn} 时出错: ${error.message}`); console.error(`文件切换错误 (${fn}):`, error);
+        });
+    });
+
+    editBtn.addEventListener('click', () => { /* ... (保持与上一版本一致) ... */
+        isEditing = !isEditing;
+        const editBtnIcon = editBtn.querySelector('.icon');
+        const editBtnText = editBtn.querySelector('.text-content');
+
+        if (isEditing) {
+            editArea.value = markdownText;
+            editArea.style.display = 'block';
+            contentDiv.style.display = 'none';
+            saveBtn.style.display = 'flex';
+            editBtnIcon.textContent = '🔒'; editBtnText.textContent = '锁定只读';
+            editBtn.classList.remove('lock');
+            if (!sidebar.classList.contains('collapsed')) {
+                sidebar.dataset.wasOpenBeforeEdit = 'true';
+                toggleTocBtn.click(); 
+            } else {
+                 sidebar.dataset.wasOpenBeforeEdit = 'false';
+            }
+            editArea.focus();
+        } else {
+            markdownText = editArea.value;
+            renderContent(markdownText);
+            editArea.style.display = 'none';
+            contentDiv.style.display = 'block';
+            saveBtn.style.display = 'none';
+            editBtnIcon.textContent = '🔓'; editBtnText.textContent = '解锁编辑';
+            editBtn.classList.add('lock');
+            if (sidebar.dataset.wasOpenBeforeEdit === 'true') {
+                sidebar.removeAttribute('data-wasOpenBeforeEdit');
+                if (sidebar.classList.contains('collapsed')) { 
+                     toggleTocBtn.click(); 
+                }
+            }
+        }
+    });
+    saveBtn.addEventListener('click', () => { /* ... (保持与上一版本一致) ... */ 
+        const fn = fileSelect.value;
+        if (!fn) { showToast('错误：未选择文件进行保存。'); return; }
+        showToast(`正在保存 ${fn}...`);
+        const currentContentToSave = editArea.value;
+        fetch('/save_file', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `filename=<span class="math-inline">\{encodeURIComponent\(fn\)\}&content\=</span>{encodeURIComponent(currentContentToSave)}`})
+        .then(response => {
+            if (!response.ok) { return response.json().then(err => { throw new Error(err.message || `保存失败，服务器错误 ${response.status}`); }).catch(() => { throw new Error(`保存失败，服务器响应: ${response.status} ${response.statusText}`); });}
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') { markdownText = currentContentToSave; showToast(`${fn} 保存成功`); }
+            else { throw new Error(data.message || '保存操作未成功'); }
+        })
+        .catch(error => { showToast(`保存文件 ${fn} 时出错: ${error.message}`); console.error(`保存错误 (${fn}):`, error); });
+    });
+    copyBtn.addEventListener('click', () => { /* ... (保持与上一版本一致) ... */ 
+        const textToCopy = isEditing ? editArea.value : markdownText;
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => showToast('全文已复制到剪贴板'))
+            .catch(err => {
+                showToast('复制失败: ' + err.message + ' 请尝试手动复制。');
+                console.error('复制全文错误:', err);
+            });
+     });
+    contentDiv.addEventListener('dblclick', (event) => { /* ... (保持与上一版本一致) ... */ 
+        if (event.target.tagName === 'IMG') {
+            try {
+                const imgUrl = new URL(event.target.src, window.location.href);
+                window.open(imgUrl.href, '_blank');
+            } catch(e) {
+                console.error("打开图片链接失败:", e);
+                showToast("无法打开图片链接，链接可能无效。");
+            }
+        }
+    });
+    screenshotContentBtn.addEventListener('click', takeContentScreenshot);
+    function takeContentScreenshot() { /* ... (保持与上一版本一致) ... */ 
+        const currentFile = fileSelect.value || ''; const filenameBase = currentFile.replace(/\.[^/.]+$/, "") || "markdown_content";
+        showToast('正在准备内容截图...'); progressContainer.style.display = 'block'; updateProgress(20);
+        fetch('/take_screenshot', {method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `current_file=${encodeURIComponent(currentFile)}`})
+        .then(response => {
+            updateProgress(50);
+            if (!response.ok) { return response.json().then(err => { throw new Error(err.message || `截图服务器错误 ${response.status}`); }).catch(() => { throw new Error(`截图请求失败: ${response.status} ${response.statusText}`); }); }
+            return response.blob();
+        })
+        .then(blob => { updateProgress(80); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${filenameBase}_content_screenshot.png`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); updateProgress(100); setTimeout(() => { progressContainer.style.display = 'none'; progressBar.style.width = '0%'; }, 500); showToast('内容截图完成，已开始下载。'); })
+        .catch(error => { progressContainer.style.display = 'none'; progressBar.style.width = '0%'; showToast(`截图失败: ${error.message}`); console.error('截图错误:', error); });
+    }
+
+
+    function setInitialSidebarState() {
+        const isSidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+        if (isSidebarCollapsed) {
+            sidebar.classList.add('collapsed-immediately', 'collapsed'); 
+            mainContentArea.classList.remove('sidebar-active');
+            toggleTocBtnText.textContent = '显示目录';
+            toggleTocBtnIcon.textContent = '📖';
+        } else {
+            sidebar.classList.remove('collapsed-immediately', 'collapsed');
+            mainContentArea.classList.add('sidebar-active');
+            toggleTocBtnText.textContent = '隐藏目录';
+            toggleTocBtnIcon.textContent = '📕';
+        }
+        setTimeout(() => sidebar.classList.remove('collapsed-immediately'), 10);
+    }
+
+
+    toggleTocBtn.addEventListener('click', () => {
+        const isCurrentlyCollapsed = sidebar.classList.contains('collapsed');
+        if (isCurrentlyCollapsed) { 
+            sidebar.style.display = 'block'; 
+            void sidebar.offsetWidth; 
+            sidebar.classList.remove('collapsed');
+            mainContentArea.classList.add('sidebar-active');
+            toggleTocBtnText.textContent = '隐藏目录';
+            toggleTocBtnIcon.textContent = '📕';
+            localStorage.setItem('sidebarCollapsed', 'false');
+        } else { 
+            sidebar.classList.add('collapsed');
+            mainContentArea.classList.remove('sidebar-active');
+            toggleTocBtnText.textContent = '显示目录';
+            toggleTocBtnIcon.textContent = '📖';
+            localStorage.setItem('sidebarCollapsed', 'true');
+        }
+    });
+
+    mainContentArea.addEventListener('scroll', () => {
+        if (mainContentArea.scrollTop > 200) { backToTopBtn.style.display = 'flex'; }
+        else { backToTopBtn.style.display = 'none'; }
+        setActiveNavLink(); 
+    });
+    backToTopBtn.addEventListener('click', () => { mainContentArea.scrollTo({ top: 0, behavior: 'smooth' }); });
+
+    if (tocSearchInput) {
+        tocSearchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            navLinksUl.querySelectorAll('li').forEach(li => {
+                li.style.display = li.textContent.toLowerCase().includes(searchTerm) ? '' : 'none';
+            });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("中文日志：DOM 内容已加载，将执行初始化。");
+        setInitialSidebarState(); 
+        applyTheme(getCurrentTheme());
+        
+        if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
+            console.error('中文致命错误：Marked.js 库未能正确加载。页面核心功能将无法使用。请检查网络连接和脚本标签（包括SRI哈希）。');
+            contentDiv.innerHTML = "<p style='color:red; font-weight:bold; padding:20px; background:white; border:1px solid red;'>关键错误：Markdown解析库 (Marked.js) 加载失败！<br>页面无法显示内容。请检查浏览器控制台中的错误信息，特别是关于脚本加载和SRI哈希的问题。</p>";
+            if(fileSelect) fileSelect.disabled = true;
+            if(editBtn) editBtn.disabled = true;
+            return; 
+        }
+        renderContent(markdownText);
+
+        if(mainContentArea) { mainContentArea.addEventListener('scroll', setActiveNavLink); }
+        window.addEventListener('resize', setActiveNavLink);
+        console.log("中文日志：初始化完成。");
+    });
+  </script>
+</body>
+</html>

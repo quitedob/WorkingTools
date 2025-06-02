@@ -1,0 +1,24 @@
+# 基础依赖
+Pillow
+PyMuPDF
+static-ffmpeg
+opencv-python
+numpy
+
+# Tesseract OCR 备选
+pytesseract
+
+# PaddleOCR PP-Structure
+paddlepaddle>=2.5.0       # GPU 版或 CPU 版
+paddleocr>=2.7.0
+
+# 超分辨率 (CARN)
+torch
+torchvision
+flask
+selenium
+pandas
+
+seaborn
+matplotlib>=3.0.0
+pydub
