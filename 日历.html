@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ICS日历渲染工具</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.8/main.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.8/main.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@fullcalendar/list@6.1.8/main.min.css" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    body {
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+      color: #333;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    header {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      text-align: center;
+      animation: fadeIn 0.8s ease-out;
+    }
+    
+    h1 {
+      color: #1a2a6c;
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+    }
+    
+    .subtitle {
+      color: #555;
+      font-size: 1.1rem;
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    
+    .main-content {
+      display: flex;
+      gap: 20px;
+      height: 90vh;
+    }
+    
+    .editor-panel {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.92);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      display: flex;
+      flex-direction: column;
+      animation: slideInLeft 0.6s ease-out;
+    }
+    
+    .editor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #eaeaea;
+    }
+    
+    .editor-header h2 {
+      color: #1a2a6c;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .tools {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-primary {
+      background: #1a2a6c;
+      color: white;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .btn-info {
+      background: #17a2b8;
+      color: white;
+    }
+    
+    .btn-warning {
+      background: #ffc107;
+      color: #333;
+    }
+    
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .btn:active {
+      transform: translateY(0);
+    }
+    
+    .editor-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    textarea {
+      flex: 1;
+      padding: 15px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      resize: none;
+      transition: border-color 0.3s;
+      background: #f8f9fa;
+      line-height: 1.5;
+    }
+    
+    textarea:focus {
+      outline: none;
+      border-color: #1a2a6c;
+      box-shadow: 0 0 0 3px rgba(26, 42, 108, 0.2);
+    }
+    
+    .calendar-panel {
+      flex: 2;
+      background: rgba(255, 255, 255, 0.92);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      display: flex;
+      flex-direction: column;
+      animation: slideInRight 0.6s ease-out;
+      overflow: hidden;
+    }
+    
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #eaeaea;
+    }
+    
+    .calendar-header h2 {
+      color: #1a2a6c;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .view-controls {
+      display: flex;
+      gap: 10px;
+    }
+    
+    #calendar {
+      flex: 1;
+      min-height: 0;
+    }
+    
+    .footer {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      text-align: center;
+      animation: fadeIn 1s ease-out;
+    }
+    
+    .footer p {
+      color: #555;
+      margin-bottom: 10px;
+    }
+    
+    .features {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 15px;
+    }
+    
+    .feature-card {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 15px;
+      width: 180px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+      transition: transform 0.3s;
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-5px);
+    }
+    
+    .feature-card i {
+      font-size: 2rem;
+      color: #1a2a6c;
+      margin-bottom: 10px;
+    }
+    
+    .feature-card h3 {
+      color: #1a2a6c;
+      font-size: 1rem;
+      margin-bottom: 5px;
+    }
+    
+    .feature-card p {
+      font-size: 0.85rem;
+      color: #666;
+    }
+    
+    .status-bar {
+      margin-top: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+    }
+    
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    
+    .status-info {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+    
+    .event-popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      display: none;
+    }
+    
+    .event-popup h3 {
+      color: #1a2a6c;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .event-details {
+      margin-bottom: 20px;
+    }
+    
+    .event-detail {
+      display: flex;
+      margin-bottom: 10px;
+    }
+    
+    .event-label {
+      font-weight: 600;
+      min-width: 100px;
+      color: #555;
+    }
+    
+    .event-value {
+      flex: 1;
+      color: #333;
+    }
+    
+    .popup-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 999;
+      display: none;
+    }
+    
+    .close-btn {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 18px;
+    }
+    
+    /* 动画 */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideInLeft {
+      from { transform: translateX(-30px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes slideInRight {
+      from { transform: translateX(30px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 1200px) {
+      .main-content {
+        flex-direction: column;
+        height: auto;
+      }
+      
+      .editor-panel, .calendar-panel {
+        min-height: 500px;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .tools, .view-controls {
+        flex-wrap: wrap;
+      }
+      
+      .btn {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+      }
+      
+      h1 {
+        font-size: 2rem;
+      }
+      
+      .feature-card {
+        width: 100%;
+        max-width: 300px;
+      }
+    }
+    
+    /* FullCalendar 自定义样式 */
+    .fc .fc-toolbar-title {
+      font-size: 1.4rem;
+      color: #1a2a6c;
+      font-weight: 600;
+    }
+    
+    .fc .fc-button {
+      background-color: #1a2a6c;
+      border: none;
+      transition: all 0.3s;
+    }
+    
+    .fc .fc-button:hover {
+      background-color: #0d1a4a;
+      transform: translateY(-2px);
+    }
+    
+    .fc-event {
+      background-color: #1a2a6c;
+      border: none;
+      border-radius: 4px;
+      padding: 3px 6px;
+      font-size: 0.9rem;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .fc-event:hover {
+      background-color: #0d1a4a;
+      transform: scale(1.02);
+    }
+    
+    .fc-daygrid-event-dot {
+      border-color: white !important;
+    }
+    
+    .event-type-1 { background-color: #1a2a6c; }
+    .event-type-2 { background-color: #28a745; }
+    .event-type-3 { background-color: #17a2b8; }
+    .event-type-4 { background-color: #dc3545; }
+    .event-type-5 { background-color: #ffc107; color: #333; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><i class="fas fa-calendar-alt"></i> ICS日历渲染工具</h1>
+      <p class="subtitle">在左侧输入或编辑ICS日历数据，右侧将实时渲染为交互式日历视图。支持一键复制、清除和撤销操作。</p>
+    </header>
+    
+    <div class="main-content">
+      <div class="editor-panel">
+        <div class="editor-header">
+          <h2><i class="fas fa-edit"></i> ICS编辑器</h2>
+          <div class="tools">
+            <button class="btn btn-primary" id="renderBtn">
+              <i class="fas fa-sync-alt"></i> 渲染日历
+            </button>
+            <button class="btn btn-success" id="copyBtn">
+              <i class="fas fa-copy"></i> 复制内容
+            </button>
+            <button class="btn btn-info" id="undoBtn">
+              <i class="fas fa-undo"></i> 撤销
+            </button>
+            <button class="btn btn-warning" id="redoBtn">
+              <i class="fas fa-redo"></i> 重做
+            </button>
+            <button class="btn btn-danger" id="clearBtn">
+              <i class="fas fa-trash-alt"></i> 清除
+            </button>
+          </div>
+        </div>
+        <div class="editor-content">
+          <textarea id="icsInput" placeholder="在此粘贴或编辑ICS日历数据...">BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//ChatGPT//LiveTalking Pipeline Dev Schedule//EN
+CALSCALE:GREGORIAN
+
+BEGIN:VEVENT
+UID:lt-001@chatgpt
+DTSTAMP:20250715T000000Z
+DTSTART:20250715T090000
+DTEND:20250718T170000
+SUMMARY:环境与工具链搭建
+DESCRIPTION:搭建开发环境（Python、FastAPI、WebRTC）；配置 LiveTalking 基础依赖
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-002@chatgpt
+DTSTAMP:20250717T000000Z
+DTSTART:20250719T090000
+DTEND:20250719T170000
+SUMMARY:ASR 模块集成与优化
+DESCRIPTION:集成 Dolphin/Whisper ASR，完成识别接口并通过基本测试
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-003@chatgpt
+DTSTAMP:20250719T000000Z
+DTSTART:20250720T090000
+DTEND:20250720T170000
+SUMMARY:VAD 模块集成与测试
+DESCRIPTION:加入静音检测（VAD），实现 ASR→VAD 数据流；输出测试日志
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-004@chatgpt
+DTSTAMP:20250722T000000Z
+DTSTART:20250722T090000
+DTEND:20250725T170000
+SUMMARY:LLM 接口设计与接入
+DESCRIPTION:设计 Qwen3‑0.6B 对话接口并完成联通测试；产出 API 文档
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-005@chatgpt
+DTSTAMP:20250724T000000Z
+DTSTART:20250726T090000
+DTEND:20250727T170000
+SUMMARY:TTS 模块集成与验证
+DESCRIPTION:集成 EdgeTTS/FishTTS，完成语音合成并验证延迟与质量
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-006@chatgpt
+DTSTAMP:20250726T000000Z
+DTSTART:20250727T090000
+DTEND:20250727T170000
+SUMMARY:MuseTalk 渲染管道集成
+DESCRIPTION:集成 MuseTalk1.5，完成唇动与画面渲染；输出演示视频
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-007@chatgpt
+DTSTAMP:20250729T000000Z
+DTSTART:20250729T090000
+DTEND:20250730T170000
+SUMMARY:全流程端到端联调
+DESCRIPTION:ASR→VAD→LLM→TTS/MuseTalk 全流程联调；输出演示样例
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-008@chatgpt
+DTSTAMP:20250731T000000Z
+DTSTART:20250731T090000
+DTEND:20250803T170000
+SUMMARY:性能与延迟优化
+DESCRIPTION:异步流水线设计；整体延迟优化 
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-009@chatgpt
+DTSTAMP:20250802T000000Z
+DTSTART:20250802T090000
+DTEND:20250802T170000
+SUMMARY:兼容性与稳定性测试
+DESCRIPTION:在 Linux/Windows 与主流浏览器中验证；修复兼容性问题
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-010@chatgpt
+DTSTAMP:20250805T000000Z
+DTSTART:20250805T090000
+DTEND:20250805T170000
+SUMMARY:部署脚本与容器化
+DESCRIPTION:编写 Dockerfile 与一键部署脚本；测试部署流程
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-011@chatgpt
+DTSTAMP:20250807T000000Z
+DTSTART:20250807T090000
+DTEND:20250807T170000
+SUMMARY:文档与演示材料编写
+DESCRIPTION:完成开发者文档与用户演示 PPT；准备演示视频
+END:VEVENT
+
+BEGIN:VEVENT
+UID:lt-012@chatgpt
+DTSTAMP:20250809T000000Z
+DTSTART:20250809T090000
+DTEND:20250809T170000
+SUMMARY:项目总结与迭代计划
+DESCRIPTION:整理问题与改进建议；制定下一阶段迭代方案
+END:VEVENT
+
+END:VCALENDAR</textarea>
+          <div id="statusBar" class="status-bar status-info">
+            <i class="fas fa-info-circle"></i>
+            <span>已加载默认日历数据，点击"渲染日历"按钮开始</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="calendar-panel">
+        <div class="calendar-header">
+          <h2><i class="fas fa-calendar-check"></i> 日历视图</h2>
+          <div class="view-controls">
+            <button class="btn btn-primary" id="todayBtn">
+              <i class="fas fa-home"></i> 今天
+            </button>
+            <button class="btn btn-info" id="prevBtn">
+              <i class="fas fa-arrow-left"></i> 上月
+            </button>
+            <button class="btn btn-info" id="nextBtn">
+              <i class="fas fa-arrow-right"></i> 下月
+            </button>
+          </div>
+        </div>
+        <div id="calendar"></div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>ICS日历渲染工具 v1.1 | 轻松可视化和编辑您的日历数据</p>
+      <div class="features">
+        <div class="feature-card">
+          <i class="fas fa-code"></i>
+          <h3>实时渲染</h3>
+          <p>ICS内容即时转换为可视化日历</p>
+        </div>
+        <div class="feature-card">
+          <i class="fas fa-clipboard"></i>
+          <h3>一键复制</h3>
+          <p>快速复制ICS内容到剪贴板</p>
+        </div>
+        <div class="feature-card">
+          <i class="fas fa-history"></i>
+          <h3>操作历史</h3>
+          <p>支持撤销和恢复操作</p>
+        </div>
+        <div class="feature-card">
+          <i class="fas fa-mobile-alt"></i>
+          <h3>响应式设计</h3>
+          <p>在各种设备上完美显示</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="popup-overlay" id="popupOverlay"></div>
+  <div class="event-popup" id="eventPopup">
+    <button class="close-btn" id="closePopup">
+      <i class="fas fa-times"></i>
+    </button>
+    <h3 id="popupTitle">事件详情</h3>
+    <div class="event-details" id="popupDetails">
+      </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ical.js@1.5.0/build/ical.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.8/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.8/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/list@6.1.8/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/interaction@6.1.8/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/icalendar@6.1.8/index.global.min.js"></script>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // ====== 提前获取 statusBar 避免 TDZ ======
+      const statusBar = document.getElementById('statusBar');
+
+      // 初始化日历
+      const calendarEl = document.getElementById('calendar');
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,dayGridWeek,listWeek'
+        },
+        eventSources: [{
+          events: function(fetchInfo, successCallback, failureCallback) {
+            try {
+              // 使用ical.js解析ICS数据
+              const jcalData = ICAL.parse(document.getElementById('icsInput').value);
+              const comp = new ICAL.Component(jcalData);
+              const vevents = comp.getAllSubcomponents('vevent');
+              const events = [];
+              
+              vevents.forEach(vevent => {
+                const event = new ICAL.Event(vevent);
+                const uid = event.uid;
+                const summary = event.summary;
+                const description = event.description;
+                const start = event.startDate.toJSDate();
+                const end = event.endDate.toJSDate();
+                const allDay = !event.startDate.isDate ? false : true;
+                
+                // 为不同类型的事件分配不同的颜色
+                const type = uid ? parseInt(uid.split('@')[0]) % 5 + 1 : 1;
+                
+                events.push({
+                  id: uid,
+                  title: summary,
+                  start: start,
+                  end: end,
+                  allDay: allDay,
+                  extendedProps: {
+                    description: description
+                  },
+                  className: `event-type-${type}`
+                });
+              });
+              
+              successCallback(events);
+              showStatus('日历数据解析成功', 'success');
+            } catch (error) {
+              console.error('解析ICS数据出错:', error);
+              showStatus('解析ICS数据出错: ' + error.message, 'error');
+              failureCallback(error);
+            }
+          }
+        }],
+        eventClick: function(info) {
+          showEventDetails(info.event);
+        },
+        eventDisplay: 'block',
+        height: 'auto',
+        eventTimeFormat: {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }
+      });
+      
+      calendar.render();
+      
+      // DOM元素引用
+      const icsInput = document.getElementById('icsInput');
+      const renderBtn = document.getElementById('renderBtn');
+      const copyBtn = document.getElementById('copyBtn');
+      const undoBtn = document.getElementById('undoBtn');
+      const redoBtn = document.getElementById('redoBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const todayBtn = document.getElementById('todayBtn');
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const popupOverlay = document.getElementById('popupOverlay');
+      const eventPopup = document.getElementById('eventPopup');
+      const closePopup = document.getElementById('closePopup');
+      const popupTitle = document.getElementById('popupTitle');
+      const popupDetails = document.getElementById('popupDetails');
+      // const statusBar = document.getElementById('statusBar'); // 已在上方声明
+      
+      // 历史记录
+      let historyStack = [icsInput.value];
+      let historyPointer = 0;
+      
+      // 保存到历史记录
+      function saveToHistory() {
+        const currentValue = icsInput.value;
+        
+        // 如果指针不在栈顶，说明执行过撤销操作，丢弃后续历史
+        if (historyPointer < historyStack.length - 1) {
+          historyStack = historyStack.slice(0, historyPointer + 1);
+        }
+        
+        // 只有当内容发生变化时才保存
+        if (historyStack[historyPointer] !== currentValue) {
+          historyStack.push(currentValue);
+          historyPointer++;
+          updateUndoRedoButtons();
+        }
+      }
+      
+      // 更新撤销/重做按钮状态
+      function updateUndoRedoButtons() {
+        undoBtn.disabled = historyPointer <= 0;
+        redoBtn.disabled = historyPointer >= historyStack.length - 1;
+      }
+      
+      // 渲染日历
+      function renderCalendar() {
+        calendar.refetchEvents();
+        showStatus('日历已重新渲染', 'success');
+      }
+      
+      // 显示事件详情
+      function showEventDetails(event) {
+        const title = event.title;
+        const start = event.start ? event.start.toLocaleString() : '未指定';
+        const end = event.end ? event.end.toLocaleString() : '未指定';
+        const description = event.extendedProps.description || '无描述';
+        
+        popupTitle.textContent = title;
+        popupDetails.innerHTML = `
+          <div class="event-detail">
+            <div class="event-label">开始时间:</div>
+            <div class="event-value">${start}</div>
+          </div>
+          <div class="event-detail">
+            <div class="event-label">结束时间:</div>
+            <div class="event-value">${end}</div>
+          </div>
+          <div class="event-detail">
+            <div class="event-label">描述:</div>
+            <div class="event-value">${description.replace(/\n/g, '<br>')}</div>
+          </div>
+        `;
+        
+        eventPopup.style.display = 'block';
+        popupOverlay.style.display = 'block';
+      }
+      
+      // 显示状态信息
+      function showStatus(message, type) {
+        statusBar.className = `status-bar status-${type}`;
+        statusBar.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-triangle' : 
+          type === 'success' ? 'check-circle' : 'info-circle'}"></i> ${message}`;
+        
+        // 3秒后自动隐藏
+        if (type !== 'error') {
+          setTimeout(() => {
+            statusBar.style.opacity = '1';
+            let opacity = 1;
+            const fadeOut = setInterval(() => {
+              opacity -= 0.05;
+              statusBar.style.opacity = opacity;
+              if (opacity <= 0) {
+                clearInterval(fadeOut);
+                statusBar.style.display = 'none';
+                setTimeout(() => {
+                  statusBar.style.display = 'flex';
+                  statusBar.style.opacity = '1';
+                }, 500);
+              }
+            }, 50);
+          }, 3000);
+        }
+      }
+      
+      // 按钮事件
+      renderBtn.addEventListener('click', function() {
+        saveToHistory();
+        renderCalendar();
+      });
+      
+      copyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(icsInput.value).then(function() {
+          showStatus('ICS内容已复制到剪贴板！', 'success');
+        }, function(err) {
+          showStatus('复制失败: ' + err, 'error');
+        });
+      });
+      
+      undoBtn.addEventListener('click', function() {
+        if (historyPointer > 0) {
+          historyPointer--;
+          icsInput.value = historyStack[historyPointer];
+          updateUndoRedoButtons();
+          renderCalendar();
+          showStatus('已撤销上一步操作', 'info');
+        }
+      });
+      
+      redoBtn.addEventListener('click', function() {
+        if (historyPointer < historyStack.length - 1) {
+          historyPointer++;
+          icsInput.value = historyStack[historyPointer];
+          updateUndoRedoButtons();
+          renderCalendar();
+          showStatus('已重做操作', 'info');
+        }
+      });
+      
+      clearBtn.addEventListener('click', function() {
+        if (icsInput.value !== '') {
+          saveToHistory();
+          icsInput.value = '';
+          renderCalendar();
+          showStatus('内容已清除', 'info');
+        }
+      });
+      
+      todayBtn.addEventListener('click', function() {
+        calendar.today();
+        showStatus('已跳转至今天', 'info');
+      });
+      
+      prevBtn.addEventListener('click', function() {
+        calendar.prev();
+        showStatus('已切换至上月', 'info');
+      });
+      
+      nextBtn.addEventListener('click', function() {
+        calendar.next();
+        showStatus('已切换至下月', 'info');
+      });
+      
+      // 关闭事件详情弹窗
+      closePopup.addEventListener('click', function() {
+        eventPopup.style.display = 'none';
+        popupOverlay.style.display = 'none';
+      });
+      
+      popupOverlay.addEventListener('click', function() {
+        eventPopup.style.display = 'none';
+        popupOverlay.style.display = 'none';
+      });
+      
+      // 输入变化时自动保存历史 (防抖)
+      let debounceTimer;
+      icsInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          saveToHistory();
+          showStatus('内容已修改', 'info');
+        }, 500);
+      });
+      
+      // 初始状态
+      updateUndoRedoButtons();
+    });
+  </script>
+</body>
+</html>
