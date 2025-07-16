@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>技术栈偏好知识图谱（优化版）</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.2/dist/echarts.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    header {
+      text-align: center;
+      padding: 25px 0;
+      margin-bottom: 20px;
+    }
+    
+    h1 {
+      font-size: 2.8rem;
+      margin-bottom: 10px;
+      background: linear-gradient(to right, #4facfe, #00f2fe);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .subtitle {
+      font-size: 1.2rem;
+      opacity: 0.8;
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    
+    #chart-container {
+      width: 100%;
+      height: 75vh;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+    }
+    
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin: 25px 0;
+      flex-wrap: wrap;
+    }
+    
+    .btn {
+      background: rgba(255, 255, 255, 0.1);
+      color: #e0e0e0;
+      border: none;
+      padding: 12px 25px;
+      border-radius: 50px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-3px);
+    }
+    
+    .btn.active {
+      background: linear-gradient(to right, #4facfe, #00f2fe);
+      color: #0f2027;
+      font-weight: bold;
+    }
+    
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 25px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+    }
+    
+    .legend-text {
+      font-size: 0.9rem;
+    }
+    
+    footer {
+      text-align: center;
+      margin-top: 30px;
+      padding: 20px;
+      font-size: 0.9rem;
+      opacity: 0.7;
+    }
+    
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 2rem;
+      }
+      .subtitle {
+        font-size: 1rem;
+      }
+      #chart-container {
+        height: 65vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>技术栈偏好知识图谱</h1>
+      <p class="subtitle">此图谱展示了现代Web开发中的技术栈偏好及关联性，使用力导向布局优化了节点分布和视觉效果</p>
+    </header>
+    
+    <div class="controls">
+      <button class="btn active" id="layout-force">力导向布局</button>
+      <button class="btn" id="layout-circular">环形布局</button>
+      <button class="btn" id="reset">重置视图</button>
+    </div>
+    
+    <div id="chart-container"></div>
+    
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-color" style="background: #42A5F5;"></div>
+        <div class="legend-text">核心框架</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: #66BB6A;"></div>
+        <div class="legend-text">CSS/UI框架</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: #FFA726;"></div>
+        <div class="legend-text">工具/构建</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: #EC407A;"></div>
+        <div class="legend-text">设计原则</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: #AB47BC;"></div>
+        <div class="legend-text">动画库</div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background: #26C6DA;"></div>
+        <div class="legend-text">状态管理</div>
+      </div>
+    </div>
+  </div>
+  
+  <footer>
+    <p>基于 ECharts 5.4.2 构建 | 使用力导向布局优化节点分布 | 点击节点可查看详细信息</p>
+  </footer>
+
+  <script>
+    // 延迟到 DOM 加载完毕再初始化
+    window.onload = function() {
+      // 1. 初始化 ECharts 实例
+      var chartDom = document.getElementById('chart-container');
+      var myChart = echarts.init(chartDom);
+      
+      // 节点分类
+      const categories = [
+        { name: '核心框架', keyword: '框架', color: '#42A5F5' },
+        { name: 'CSS/UI框架', keyword: 'CSS', color: '#66BB6A' },
+        { name: '工具/构建', keyword: '工具', color: '#FFA726' },
+        { name: '设计原则', keyword: '设计', color: '#EC407A' },
+        { name: '动画库', keyword: '动画', color: '#AB47BC' },
+        { name: '状态管理', keyword: '状态', color: '#26C6DA' }
+      ];
+      
+      // 2. 指定图表配置项
+      var option = {
+        title: {
+          text: '技术栈偏好知识图谱',
+          left: 'center',
+          textStyle: {
+            color: '#e0e0e0',
+            fontSize: 22,
+            fontWeight: 'bold'
+          }
+        },
+        tooltip: {
+          show: true,
+          formatter: function(params) {
+            if (params.dataType === 'node') {
+              return `<b>${params.data.name}</b><br/>分类: ${params.data.category}`;
+            }
+            return `${params.source} → ${params.target}`;
+          }
+        },
+        legend: {
+          show: false
+        },
+        animation: true,
+        animationDuration: 1500,
+        animationEasingUpdate: 'quinticInOut',
+        series: [{
+          name: '知识图谱',
+          type: 'graph',
+          layout: 'force',
+          force: {
+            repulsion: 300,
+            edgeLength: 150,
+            gravity: 0.1,
+            friction: 0.1
+          },
+          symbolSize: function(val) {
+            return val === 'center' ? 80 : 50;
+          },
+          roam: true,
+          draggable: true,
+          focusNodeAdjacency: true,
+          categories: categories,
+          label: {
+            show: true,
+            fontSize: 14,
+            position: 'right',
+            offset: [10, 0],
+            color: '#e0e0e0',
+            formatter: '{b}'
+          },
+          edgeLabel: {
+            show: false
+          },
+          lineStyle: {
+            width: 2,
+            curveness: 0.2,
+            color: 'source',
+            opacity: 0.6
+          },
+          emphasis: {
+            focus: 'adjacency',
+            scale: true,
+            label: {
+              fontWeight: 'bold',
+              fontSize: 16
+            },
+            lineStyle: {
+              width: 4,
+              opacity: 1
+            }
+          },
+          data: [
+            { 
+              id: 'center', 
+              name: '技术栈偏好', 
+              category: '核心框架',
+              symbolSize: 80,
+              itemStyle: { 
+                color: '#42A5F5' 
+              },
+              label: {
+                fontSize: 18,
+                fontWeight: 'bold'
+              }
+            },
+            { id: 'React', name: 'React', category: '核心框架' },
+            { id: 'Next', name: 'Next.js', category: '核心框架' },
+            { id: 'Gatsby', name: 'Gatsby.js', category: '核心框架' },
+            { id: 'Tailwind', name: 'Tailwind CSS', category: 'CSS/UI框架' },
+            { id: 'Chakra', name: 'Chakra UI', category: 'CSS/UI框架' },
+            { id: 'JS', name: 'JavaScript', category: '工具/构建' },
+            { id: 'TypeScript', name: 'TypeScript', category: '工具/构建' },
+            { id: 'Vite', name: 'Vite 4.4.5', category: '工具/构建' },
+            { id: 'Node', name: 'Node.js', category: '工具/构建' },
+            { id: '性能', name: '性能优化', category: '设计原则' },
+            { id: '响应式', name: '响应式设计', category: '设计原则' },
+            { id: '移动优先', name: '移动端优先', category: '设计原则' },
+            { id: 'Framer', name: 'Framer Motion', category: '动画库' },
+            { id: 'Spring', name: 'React Spring', category: '动画库' },
+            { id: 'useReducer', name: 'useReducer', category: '状态管理' }
+          ],
+          links: [
+            { source: 'center', target: 'React' },
+            { source: 'center', target: 'Next' },
+            { source: 'center', target: 'Gatsby' },
+            { source: 'center', target: 'Tailwind' },
+            { source: 'center', target: 'Chakra' },
+            { source: 'center', target: 'JS' },
+            { source: 'center', target: 'TypeScript' },
+            { source: 'center', target: 'Vite' },
+            { source: 'center', target: 'Node' },
+            { source: 'center', target: '性能' },
+            { source: 'center', target: '响应式' },
+            { source: 'center', target: '移动优先' },
+            { source: 'center', target: 'Framer' },
+            { source: 'center', target: 'Spring' },
+            { source: 'center', target: 'useReducer' },
+            
+            // 添加技术栈内部关系
+            { source: 'React', target: 'Next' },
+            { source: 'React', target: 'Gatsby' },
+            { source: 'React', target: 'TypeScript' },
+            { source: 'React', target: 'useReducer' },
+            { source: 'Next', target: 'TypeScript' },
+            { source: 'Next', target: '性能' },
+            { source: 'Vite', target: 'React' },
+            { source: 'Vite', target: 'TypeScript' },
+            { source: 'Tailwind', target: '响应式' },
+            { source: 'Tailwind', target: '移动优先' },
+            { source: 'Chakra', target: '响应式' },
+            { source: 'Chakra', target: '移动优先' },
+            { source: 'Framer', target: 'React' },
+            { source: 'Spring', target: 'React' },
+            { source: '性能', target: '响应式' },
+            { source: '性能', target: '移动优先' }
+          ]
+        }]
+      };
+      
+      // 设置节点颜色基于分类
+      option.series[0].data.forEach(node => {
+        const category = categories.find(cat => cat.name === node.category);
+        if (category) {
+          node.itemStyle = node.itemStyle || {};
+          node.itemStyle.color = category.color;
+        }
+      });
+
+      // 3. 使用刚指定的配置项和数据显示图表
+      myChart.setOption(option);
+      
+      // 4. 自适应窗口大小变化
+      window.addEventListener('resize', function() {
+        myChart.resize();
+      });
+      
+      // 布局切换功能
+      document.getElementById('layout-force').addEventListener('click', function() {
+        option.series[0].layout = 'force';
+        option.series[0].force = {
+          repulsion: 300,
+          edgeLength: 150,
+          gravity: 0.1,
+          friction: 0.1
+        };
+        myChart.setOption(option);
+        setActiveButton(this);
+      });
+      
+      document.getElementById('layout-circular').addEventListener('click', function() {
+        option.series[0].layout = 'circular';
+        option.series[0].circular = {
+          rotateLabel: true
+        };
+        myChart.setOption(option);
+        setActiveButton(this);
+      });
+      
+      document.getElementById('reset').addEventListener('click', function() {
+        myChart.clear();
+        myChart.setOption(option);
+        setActiveButton(document.getElementById('layout-force'));
+      });
+      
+      function setActiveButton(btn) {
+        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+      
+      // 添加点击节点的事件
+      myChart.on('click', function(params) {
+        if (params.dataType === 'node') {
+          console.log('点击了节点: ' + params.data.name);
+        }
+      });
+    }
+  </script>
+</body>
+</html>
