@@ -1,0 +1,607 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片比较工具</title>
+    <style>
+        /* --- 全局与基础样式 --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            margin: 0;
+            background-color: #f0f2f5; /* 浅灰色背景 */
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* 顶部对齐 */
+            min-height: 100vh;
+            padding-top: 20px; /* 顶部留白 */
+            padding-bottom: 20px; /* 底部留白 */
+            box-sizing: border-box;
+        }
+
+        .page-container { /* 页面主容器 */
+            background-color: #ffffff; /* 白色背景 */
+            border-radius: 12px; /* 圆角 */
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1); /* 更柔和的阴影 */
+            padding: 25px 30px;
+            width: 90%;
+            max-width: 900px; /* 限制最大宽度 */
+            box-sizing: border-box;
+        }
+
+        header h1 {
+            text-align: center;
+            color: #1d1d1f; /* 苹果风格的深灰色 */
+            font-size: 28px; /* 稍大标题 */
+            font-weight: 600;
+            margin-bottom: 25px;
+        }
+
+        /* --- 控制面板样式 --- */
+        .controls-panel {
+            display: flex;
+            flex-wrap: wrap; /* 允许换行 */
+            gap: 20px; /* 模块间距 */
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9; /* 轻微区分背景 */
+            border-radius: 8px;
+        }
+
+        .controls-panel fieldset {
+            border: 1px solid #dcdcdc; /* 边框颜色 */
+            border-radius: 8px;
+            padding: 15px;
+            flex: 1; /* 弹性增长 */
+            min-width: 280px; /* 最小宽度, 保证内容不太拥挤 */
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px; /* 组内元素间距 */
+        }
+
+        .controls-panel legend {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+            padding: 0 8px;
+        }
+
+        .control-group { /* 控制组 */
+            margin-bottom: 10px; /* 减少一点默认间距，fieldset的gap会处理一些 */
+        }
+        .control-group:last-child {
+            margin-bottom: 0; 
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #555;
+        }
+        .control-group label.inline-label { /* 内联标签样式 */
+            display: inline;
+            margin-bottom: 0;
+            margin-left: 5px;
+            font-weight: normal;
+        }
+
+        .control-group input[type="text"],
+        .control-group input[type="file"],
+        .control-group input[type="number"],
+        .control-group select {
+            width: 100%; /* 输入框占满控制组宽度 */
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+         .control-group input[type="checkbox"] { /* 复选框特殊处理 */
+            width: auto; 
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+
+        .control-group input[type="file"] {
+            padding: 6px 10px; /* 文件输入框padding调整 */
+        }
+
+        .file-path-display { 
+            font-size: 12px;
+            color: #777;
+            margin-top: 5px;
+            display: block; /* 改为块级，显示在输入框下方 */
+            margin-left: 0; 
+            word-break: break-all; 
+        }
+
+        .action-buttons button { 
+            padding: 10px 18px;
+            background-color: #007aff; 
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+            margin-right: 10px; 
+        }
+        .action-buttons button:last-child {
+            margin-right: 0;
+        }
+        .action-buttons { /* 包裹按钮的div */
+            margin-top: 5px; /* 给按钮组一点上边距 */
+        }
+
+        .action-buttons button:hover {
+            background-color: #005bb5; 
+        }
+
+        .action-buttons button:disabled {
+            background-color: #c7c7cc; 
+            cursor: not-allowed;
+        }
+
+        /* --- 图片比较区域样式 --- */
+        .comparison-area {
+            text-align: center;
+        }
+        .comparison-area h2 {
+            font-size: 20px;
+            font-weight: 500;
+            color: #1d1d1f;
+            margin-bottom: 15px;
+        }
+
+        .img-comparison-container { 
+            position: relative; 
+            width: 100%;
+            max-width: 600px; 
+            aspect-ratio: 600 / 400; 
+            margin: 0 auto; 
+            overflow: hidden; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        .img-container { 
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .base-image, .overlay-image { 
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; 
+        }
+
+        .overlay-image {
+            /* clip-path 由JS动态设置 */
+        }
+
+        .slider-handle { 
+            position: absolute;
+            top: 0;
+            left: 50%; 
+            width: 2px; 
+            height: 100%;
+            background-color: rgba(1, 1, 1, 0.8); 
+            cursor: ew-resize; 
+            transform: translateX(-50%); 
+            z-index: 10;
+            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+        }
+        .slider-handle::before, .slider-handle::after { 
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #007aff;
+            border: 2px solid white;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .slider-handle::before {
+            top: -8px; 
+        }
+        .slider-handle::after {
+            bottom: -8px; 
+        }
+
+        hr.subtle-divider { /* 用于fieldset内部分隔的细线 */
+            border: none;
+            border-top: 1px solid #e5e5e5; /* 较浅的分隔线 */
+            margin: 10px 0;
+        }
+
+
+        /* --- 页脚样式 --- */
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e5e5;
+        }
+
+        footer p {
+            font-size: 13px;
+            color: #888;
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .controls-panel {
+                flex-direction: column; 
+            }
+            .controls-panel fieldset {
+                min-width: auto; /* 在小屏幕上允许fieldset收缩 */
+            }
+            .page-container {
+                padding: 15px;
+                width: 95%;
+            }
+            header h1 {
+                font-size: 24px;
+            }
+            .comparison-area h2 {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <header>
+            <h1>图片效果实时对比工具</h1>
+        </header>
+
+        <main>
+            <div class="controls-panel">
+                <fieldset>
+                    <legend>图片源设置</legend>
+                    <div class="control-group">
+                        <label for="baseImageUpload">底层图片：</label>
+                        <input type="file" id="baseImageUpload" accept="image/*">
+                        <span class="file-path-display" id="baseImagePath">未选择文件</span>
+                    </div>
+                    <div class="control-group">
+                        <label for="overlayImageUpload">覆盖图片（效果图）：</label>
+                        <input type="file" id="overlayImageUpload" accept="image/*">
+                        <span class="file-path-display" id="overlayImagePath">未选择文件</span>
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>显示与标题</legend>
+                    <div class="control-group">
+                        <label for="customTitleInput">对比区域标题：</label>
+                        <input type="text" id="customTitleInput">
+                    </div>
+                    <div class="action-buttons" style="text-align: left;">
+                        <button id="updateTitleButton">确认更新标题</button>
+                    </div>
+                    <hr class="subtle-divider">
+                    <div class="action-buttons" style="text-align: center;">
+                        <button id="toggleModeButton">切换模式</button>
+                    </div>
+                </fieldset>
+
+                <fieldset id="autoControlsFieldset">
+                    <legend>自动模式控制 (仅垂直线)</legend>
+                    <div class="control-group">
+                        <label for="stepSize">移动步长 (px):</label>
+                        <input type="number" id="stepSize" value="10" min="1">
+                    </div>
+                    <div class="control-group">
+                        <label for="stepInterval">时间间隔 (ms):</label>
+                        <input type="number" id="stepInterval" value="100" min="10">
+                        <small style="display: block; font-size: 11px; color: #777; margin-top: 3px;">提示：此值为毫秒 (ms)</small>
+                    </div>
+                    <div class="control-group">
+                        <label for="direction">移动方向:</label>
+                        <select id="direction">
+                            <option value="ltr" selected>从左到右</option>
+                            <option value="rtl">从右到左</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                         <input type="checkbox" id="loopAutoPlayCheckbox" checked>
+                         <label for="loopAutoPlayCheckbox" class="inline-label">自动循环播放</label>
+                    </div>
+                    <div class="action-buttons">
+                        <button id="startAutoButton">开始自动</button>
+                        <button id="stopAutoButton" disabled>停止自动</button>
+                    </div>
+                </fieldset>
+            </div>
+
+            <div class="comparison-area">
+                <h2 id="mainComparisonTitle">效果对比</h2>
+                <div class="img-comparison-container" id="imageComparator">
+                    <div class="img-container">
+                        <img class="base-image" src="https://picsum.photos/id/1015/600/400" alt="底层图" id="baseImg">
+                        <img class="overlay-image" src="https://picsum.photos/id/1025/600/400" alt="覆盖图" id="overlayImg">
+                    </div>
+                    <div class="slider-handle" id="sliderHandle"></div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 图片比较工具. 当前日期: <span id="currentDate"></span></p>
+        </footer>
+    </div>
+
+    <script>
+        // --- DOM元素获取 ---
+        // 简化注释：获取页面上的各个元素
+        const imageComparator = document.getElementById('imageComparator'); 
+        const baseImg = document.getElementById('baseImg'); 
+        const overlayImg = document.getElementById('overlayImg'); 
+        const sliderHandle = document.getElementById('sliderHandle'); 
+
+        const baseImageUpload = document.getElementById('baseImageUpload'); 
+        const overlayImageUpload = document.getElementById('overlayImageUpload'); 
+        const baseImagePath = document.getElementById('baseImagePath'); 
+        const overlayImagePath = document.getElementById('overlayImagePath'); 
+
+        const customTitleInput = document.getElementById('customTitleInput'); 
+        const updateTitleButton = document.getElementById('updateTitleButton'); 
+        const mainComparisonTitle = document.getElementById('mainComparisonTitle'); // H2主标题元素
+        const toggleModeButton = document.getElementById('toggleModeButton'); 
+        
+        const autoControlsFieldset = document.getElementById('autoControlsFieldset'); 
+        const stepSizeInput = document.getElementById('stepSize'); 
+        const stepIntervalInput = document.getElementById('stepInterval'); 
+        const directionSelect = document.getElementById('direction'); 
+        const loopAutoPlayCheckbox = document.getElementById('loopAutoPlayCheckbox'); 
+        const startAutoButton = document.getElementById('startAutoButton'); 
+        const stopAutoButton = document.getElementById('stopAutoButton'); 
+        const currentDateEl = document.getElementById('currentDate'); 
+
+        // --- 状态变量 ---
+        // 简化注释：定义一些用于控制状态的变量
+        let isDragging = false; 
+        let autoIntervalId = null; 
+        let currentSliderPosition = 50; 
+        let currentMode = 'vertical'; 
+        const defaultComparisonTitleText = "效果对比"; // 默认的对比区域标题文本
+
+        // --- 初始化 ---
+        // 简化注释：页面加载时初始化内容和事件监听
+        function initializeComparator() {
+            currentSliderPosition = 50; 
+            mainComparisonTitle.textContent = defaultComparisonTitleText; 
+            customTitleInput.value = defaultComparisonTitleText; 
+            
+            updateModeUI(); 
+
+            const today = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            currentDateEl.textContent = today.toLocaleDateString('zh-CN', options);
+
+            baseImg.onerror = function() {
+                console.warn("默认底层图片加载失败。");
+                baseImg.alt = "默认底层图片加载失败";
+            };
+            overlayImg.onerror = function() {
+                console.warn("默认覆盖图片加载失败。");
+                overlayImg.alt = "默认覆盖图片加载失败";
+            };
+        }
+
+        // --- UI更新函数 ---
+        // 简化注释：根据当前模式更新界面元素状态、文本和样式
+        function updateModeUI() {
+            const autoLegend = autoControlsFieldset.querySelector('legend');
+            if (currentMode === 'vertical') {
+                toggleModeButton.textContent = '切换到对角线模式';
+                // currentModeDisplay.textContent = '(垂直线模式)'; // 已移除
+                sliderHandle.style.display = 'block'; 
+                overlayImg.style.clipPath = `inset(0 ${100 - currentSliderPosition}% 0 0)`; 
+                if(autoLegend) autoLegend.textContent = "自动模式控制 (仅垂直线)";
+
+                stepSizeInput.disabled = false;
+                stepIntervalInput.disabled = false;
+                directionSelect.disabled = false;
+                loopAutoPlayCheckbox.disabled = false;
+                startAutoButton.disabled = (autoIntervalId !== null);
+                stopAutoButton.disabled = (autoIntervalId === null);
+
+            } else { // diagonal mode
+                if (autoIntervalId) stopAutoPlay(); 
+                toggleModeButton.textContent = '切换到垂直线模式';
+                // currentModeDisplay.textContent = '(对角线模式)'; // 已移除
+                overlayImg.style.clipPath = 'polygon(0 0, 100% 100%, 0 100%)'; 
+                sliderHandle.style.display = 'none'; 
+                if(autoLegend) autoLegend.textContent = "自动模式控制 (对角线模式下禁用)";
+
+                stepSizeInput.disabled = true;
+                stepIntervalInput.disabled = true;
+                directionSelect.disabled = true;
+                loopAutoPlayCheckbox.disabled = true;
+                startAutoButton.disabled = true;
+                stopAutoButton.disabled = true;
+            }
+        }
+
+        // --- 图片比较核心函数 (仅垂直模式) ---
+        // 简化注释：当手动拖动滑块时，更新滑块位置和覆盖图片的裁剪区域 (仅垂直模式)
+        function updateComparison(xPosition) {
+            if (currentMode !== 'vertical') return; 
+            const rect = imageComparator.getBoundingClientRect(); 
+            let newPositionPercent = ((xPosition - rect.left) / rect.width) * 100;
+            newPositionPercent = Math.max(0, Math.min(100, newPositionPercent));
+            currentSliderPosition = newPositionPercent; 
+            sliderHandle.style.left = `${newPositionPercent}%`; 
+            overlayImg.style.clipPath = `inset(0 ${100 - newPositionPercent}% 0 0)`;
+        }
+
+        // --- 事件监听：标题更新 ---
+        // 简化注释：当点击“确认更新标题”按钮时，更新对比区域的H2标题
+        updateTitleButton.addEventListener('click', function() {
+            const newTitle = customTitleInput.value.trim(); 
+            if (newTitle) {
+                mainComparisonTitle.textContent = newTitle; 
+            } else {
+                mainComparisonTitle.textContent = defaultComparisonTitleText; 
+                customTitleInput.value = defaultComparisonTitleText; 
+            }
+        });
+
+        // --- 事件监听：模式切换 ---
+        // 简化注释：当点击模式切换按钮时，切换模式并更新UI
+        toggleModeButton.addEventListener('click', function() {
+            currentMode = (currentMode === 'vertical') ? 'diagonal' : 'vertical'; 
+            updateModeUI(); 
+        });
+
+        // --- 事件监听：手动拖动 - 鼠标 (仅垂直模式) ---
+        sliderHandle.addEventListener('mousedown', function(event) {
+            if (currentMode !== 'vertical') return; 
+            event.preventDefault(); 
+            isDragging = true; 
+            if (autoIntervalId) stopAutoPlay(); 
+            document.body.style.cursor = 'ew-resize'; 
+        });
+
+        document.addEventListener('mousemove', function(event) {
+            if (currentMode !== 'vertical' || !isDragging) return; 
+            updateComparison(event.clientX); 
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (!isDragging) return; 
+            isDragging = false; 
+            document.body.style.cursor = 'default'; 
+        });
+
+        // --- 事件监听：手动拖动 - 触摸 (仅垂直模式) ---
+        sliderHandle.addEventListener('touchstart', function(event) {
+            if (currentMode !== 'vertical') return; 
+            event.preventDefault(); 
+            isDragging = true; 
+            if (autoIntervalId) stopAutoPlay(); 
+        });
+
+        document.addEventListener('touchmove', function(event) {
+            if (currentMode !== 'vertical' || !isDragging || event.touches.length === 0) return; 
+            event.preventDefault(); 
+            updateComparison(event.touches[0].clientX); 
+        });
+
+        document.addEventListener('touchend', function() {
+            if (!isDragging) return; 
+            isDragging = false; 
+        });
+
+
+        // --- 事件监听：图片上传 ---
+        // 简化注释：处理用户选择图片文件后的逻辑
+        function handleImageUpload(event, imgElement, pathElement) {
+            const file = event.target.files[0]; 
+            if (file) {
+                const reader = new FileReader(); 
+                reader.onload = function(e) {
+                    imgElement.src = e.target.result; 
+                }
+                reader.readAsDataURL(file); 
+                pathElement.textContent = file.name; 
+            } else {
+                pathElement.textContent = "未选择文件"; 
+            }
+        }
+
+        baseImageUpload.addEventListener('change', function(event) {
+            handleImageUpload(event, baseImg, baseImagePath);
+        });
+
+        overlayImageUpload.addEventListener('change', function(event) {
+            handleImageUpload(event, overlayImg, overlayImagePath);
+        });
+
+
+        // --- 自动模式控制 (仅垂直模式) ---
+        // 简化注释：停止自动播放功能
+        function stopAutoPlay() {
+            if (autoIntervalId) {
+                clearInterval(autoIntervalId); 
+                autoIntervalId = null; 
+            }
+            if (currentMode === 'vertical') { 
+                 startAutoButton.disabled = false; 
+                 stopAutoButton.disabled = true;  
+            } else {
+                 startAutoButton.disabled = true;
+                 stopAutoButton.disabled = true;
+            }
+        }
+
+        // 简化注释：开始自动播放功能
+        startAutoButton.addEventListener('click', function() {
+            if (currentMode !== 'vertical' || autoIntervalId) return; 
+
+            const step = parseInt(stepSizeInput.value, 10) || 10; 
+            const interval = parseInt(stepIntervalInput.value, 10) || 100; 
+            const selectedDirection = directionSelect.value; 
+
+            startAutoButton.disabled = true; 
+            stopAutoButton.disabled = false; 
+
+            autoIntervalId = setInterval(function() {
+                let newSliderPosPercent = currentSliderPosition;
+                const containerWidth = imageComparator.offsetWidth; 
+                if (containerWidth === 0) { 
+                    console.warn("图片比较容器宽度为0，自动播放已停止。");
+                    stopAutoPlay();
+                    return;
+                }
+                const stepPercent = (step / containerWidth) * 100; 
+
+                if (selectedDirection === 'ltr') { 
+                    newSliderPosPercent += stepPercent;
+                    if (newSliderPosPercent >= 100) { 
+                        if (loopAutoPlayCheckbox.checked) { 
+                            newSliderPosPercent = 0; 
+                        } else { 
+                            newSliderPosPercent = 100; 
+                            stopAutoPlay(); 
+                        }
+                    }
+                } else { // rtl
+                    newSliderPosPercent -= stepPercent;
+                    if (newSliderPosPercent <= 0) { 
+                        if (loopAutoPlayCheckbox.checked) { 
+                            newSliderPosPercent = 100; 
+                        } else { 
+                            newSliderPosPercent = 0; 
+                            stopAutoPlay(); 
+                        }
+                    }
+                }
+                
+                currentSliderPosition = Math.max(0, Math.min(100, newSliderPosPercent));
+                sliderHandle.style.left = `${currentSliderPosition}%`; 
+                overlayImg.style.clipPath = `inset(0 ${100 - currentSliderPosition}% 0 0)`; 
+
+            }, interval);
+        });
+
+        // 简化注释：为停止按钮添加点击事件监听器
+        stopAutoButton.addEventListener('click', stopAutoPlay);
+
+        // --- 页面加载完成时初始化 ---
+        // 简化注释：当DOM完全加载并解析后，执行初始化函数
+        document.addEventListener('DOMContentLoaded', initializeComparator);
+    </script>
+</body>
+</html>
