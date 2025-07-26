@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid 在线编辑器</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Orbitron:wght@400;500;700&family=Audiowide&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- 基础样式 --- */
+        :root {
+            --font-sans-serif: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            --font-google: 'Roboto', var(--font-sans-serif);
+            --font-apple: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            --font-futuristic: 'Orbitron', 'Audiowide', var(--font-sans-serif);
+        }
+
+        body {
+            margin: 0;
+            font-family: var(--font-sans-serif);
+            transition: background-color 0.3s ease, color 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        header {
+            padding: 15px 25px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.8em;
+        }
+
+        .theme-selector label, .controls label {
+            margin-right: 8px;
+            font-weight: 500;
+        }
+
+        .theme-selector select, .controls select, .controls button {
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 0.95em;
+            transition: all 0.2s ease;
+        }
+        .controls button {
+            cursor: pointer;
+        }
+
+
+        .controls {
+            padding: 15px 25px;
+            background-color: rgba(0,0,0,0.03);
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .editor-container {
+            display: flex;
+            flex-grow: 1;
+            overflow: hidden; /* 防止子元素溢出导致滚动条 */
+        }
+
+        .editor-pane, .preview-pane {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto; /* 内部滚动 */
+        }
+
+        .editor-pane {
+            border-right: 1px solid #e0e0e0;
+        }
+
+        .editor-pane h2, .preview-pane h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        #mermaid-input {
+            width: 100%;
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            box-sizing: border-box;
+            resize: none; /* 禁用手动调整大小，让flex布局控制 */
+        }
+
+        #mermaid-output {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px; /* 确保有最小高度 */
+            overflow: auto; /* 图表过大时可以滚动 */
+        }
+        #mermaid-output svg {
+            max-width: 100%;
+            max-height: 100%; /* 确保SVG在容器内 */
+        }
+
+
+        #error-output {
+            margin-top: 10px;
+            color: red;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+        }
+
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s ease infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        footer {
+            text-align: center;
+            padding: 15px;
+            background-color: #333;
+            color: white;
+            font-size: 0.9em;
+            flex-shrink: 0;
+        }
+        footer p { margin: 0; }
+
+        /* --- 谷歌风 (Material Design) --- */
+        body.theme-google {
+            font-family: var(--font-google);
+            background-color: #f5f5f5;
+            color: #212121;
+        }
+        .theme-google header {
+            background-color: #3f51b5; /* Indigo */
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .theme-google header h1 { color: white; }
+        .theme-google .theme-selector label, .theme-google .controls label { color: #424242; }
+        .theme-google .theme-selector select, .theme-google .controls select {
+            border: 1px solid #bdbdbd;
+            background-color: white;
+        }
+        .theme-google .controls button {
+            background-color: #2196f3; /* Blue */
+            color: white;
+            border: none;
+            box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14), 0 3px 1px -2px rgba(0,0,0,0.12), 0 1px 5px 0 rgba(0,0,0,0.2);
+        }
+        .theme-google .controls button:hover { background-color: #1976d2; }
+        .theme-google .controls { background-color: #eeeeee; border-bottom: 1px solid #e0e0e0;}
+        .theme-google .editor-pane, .theme-google .preview-pane { background-color: #ffffff; }
+        .theme-google .editor-pane { border-right: 1px solid #e0e0e0; }
+        .theme-google #mermaid-input {
+            border: 1px solid #e0e0e0;
+            background-color: #f9f9f9;
+        }
+        .theme-google .loading-spinner { border-left-color: #3f51b5; }
+        /* 谷歌风 Mermaid 图表样式 */
+        .theme-google #mermaid-output .cluster rect, .theme-google #mermaid-output .node rect, .theme-google #mermaid-output .node circle, .theme-google #mermaid-output .node polygon, .theme-google #mermaid-output .node ellipse {
+            fill: #e8eaf6; /* Indigo 50 */
+            stroke: #3f51b5; /* Indigo 500 */
+            stroke-width: 2px;
+        }
+        .theme-google #mermaid-output .node .label, .theme-google #mermaid-output .node text {
+            fill: #212121;
+            font-family: var(--font-google);
+        }
+        .theme-google #mermaid-output .edgePath path.path {
+            stroke: #7986cb; /* Indigo 300 */
+            stroke-width: 1.5px;
+        }
+        .theme-google #mermaid-output .edgeLabel {
+            background-color: #f5f5f5;
+            color: #3f51b5;
+            font-family: var(--font-google);
+        }
+        .theme-google #mermaid-output .arrowheadPath {
+            fill: #7986cb;
+        }
+        .theme-google #mermaid-output .messageText {
+            fill: #212121;
+            font-family: var(--font-google);
+        }
+        .theme-google #mermaid-output .actor rect {
+             fill: #c5cae9; /* Indigo 100 */
+             stroke: #3f51b5;
+        }
+        .theme-google #mermaid-output .section text {
+            fill: #3f51b5;
+            font-weight: bold;
+        }
+
+
+        /* --- 苹果风 (Apple Design) --- */
+        body.theme-apple {
+            font-family: var(--font-apple);
+            background-color: #f2f2f7;
+            color: #1c1c1e;
+        }
+        .theme-apple header {
+            background-color: rgba(248, 248, 248, 0.85); /* Semi-transparent white */
+            backdrop-filter: blur(10px);
+            color: #1c1c1e;
+            border-bottom: 1px solid #d1d1d6;
+            box-shadow: none;
+        }
+        .theme-apple header h1 { color: #1c1c1e; }
+        .theme-apple .theme-selector label, .theme-apple .controls label { color: #3c3c43; }
+        .theme-apple .theme-selector select, .theme-apple .controls select {
+            border: 1px solid #c4c4c6;
+            background-color: #ffffff;
+            border-radius: 7px;
+        }
+        .theme-apple .controls button {
+            background-color: #007aff; /* Apple Blue */
+            color: white;
+            border: none;
+            border-radius: 7px;
+        }
+         .theme-apple .controls button:hover { background-color: #005bb5; }
+        .theme-apple .controls { background-color: #f2f2f7; border-bottom: 1px solid #e5e5ea;}
+        .theme-apple .editor-pane, .theme-apple .preview-pane { background-color: #ffffff; }
+        .theme-apple .editor-pane { border-right: 1px solid #e5e5ea; }
+        .theme-apple #mermaid-input {
+            border: 1px solid #d1d1d6;
+            background-color: #f9f9f9;
+            border-radius: 7px;
+        }
+        .theme-apple .loading-spinner { border-left-color: #007aff; }
+        /* 苹果风 Mermaid 图表样式 */
+        .theme-apple #mermaid-output .cluster rect, .theme-apple #mermaid-output .node rect, .theme-apple #mermaid-output .node circle, .theme-apple #mermaid-output .node polygon, .theme-apple #mermaid-output .node ellipse {
+            fill: #e6f3ff; /* Light Blue */
+            stroke: #007aff; /* Apple Blue */
+            stroke-width: 1.5px;
+        }
+        .theme-apple #mermaid-output .node .label, .theme-apple #mermaid-output .node text {
+            fill: #1c1c1e;
+            font-family: var(--font-apple);
+        }
+        .theme-apple #mermaid-output .edgePath path.path {
+            stroke: #85c5ff; /* Lighter Apple Blue */
+            stroke-width: 1.5px;
+        }
+        .theme-apple #mermaid-output .edgeLabel {
+            background-color: #f2f2f7;
+            color: #007aff;
+            font-family: var(--font-apple);
+        }
+        .theme-apple #mermaid-output .arrowheadPath {
+            fill: #85c5ff;
+        }
+        .theme-apple #mermaid-output .messageText {
+            fill: #1c1c1e;
+            font-family: var(--font-apple);
+        }
+        .theme-apple #mermaid-output .actor rect {
+             fill: #d1e8ff;
+             stroke: #007aff;
+        }
+        .theme-apple #mermaid-output .section text {
+            fill: #007aff;
+            font-weight: 500;
+        }
+
+        /* --- 未来风 (Futuristic) --- */
+        body.theme-futuristic {
+            font-family: var(--font-futuristic);
+            background-color: #0a0f18; /* Dark blue-black */
+            color: #c0c0ff; /* Light lavender */
+        }
+        .theme-futuristic header {
+            background-color: rgba(15, 25, 40, 0.7);
+            backdrop-filter: blur(8px);
+            color: #00e5ff; /* Neon cyan */
+            border-bottom: 1px solid #203050;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
+        }
+        .theme-futuristic header h1 { color: #00e5ff; text-shadow: 0 0 3px #00e5ff; }
+        .theme-futuristic .theme-selector label, .theme-futuristic .controls label { color: #80a0ff; }
+        .theme-futuristic .theme-selector select, .theme-futuristic .controls select {
+            background-color: rgba(20, 30, 55, 0.8);
+            border: 1px solid #304070;
+            color: #c0c0ff;
+            border-radius: 0;
+        }
+        .theme-futuristic .controls button {
+            background-color: transparent;
+            color: #00e5ff;
+            border: 1px solid #00e5ff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 0;
+            box-shadow: 0 0 5px rgba(0, 229, 255, 0.3);
+        }
+        .theme-futuristic .controls button:hover {
+            background-color: rgba(0, 229, 255, 0.1);
+            box-shadow: 0 0 10px #00e5ff, 0 0 3px #00e5ff inset;
+        }
+        .theme-futuristic .controls { background-color: rgba(10, 20, 35, 0.9); border-bottom: 1px solid #203050;}
+        .theme-futuristic .editor-pane, .theme-futuristic .preview-pane { background-color: rgba(10, 15, 28, 0.9); }
+        .theme-futuristic .editor-pane { border-right: 1px solid #203050; }
+        .theme-futuristic #mermaid-input {
+            background-color: rgba(5, 10, 20, 0.9);
+            border: 1px solid #304070;
+            color: #e0e0ff; /* Lighter text for editor */
+            border-radius: 0;
+        }
+        .theme-futuristic .loading-spinner { border-left-color: #00e5ff; border-color: rgba(0, 229, 255, 0.2); border-left-color: #00e5ff;}
+        /* 未来风 Mermaid 图表样式 */
+        .theme-futuristic #mermaid-output .cluster rect, .theme-futuristic #mermaid-output .node rect, .theme-futuristic #mermaid-output .node circle, .theme-futuristic #mermaid-output .node polygon, .theme-futuristic #mermaid-output .node ellipse {
+            fill: #101828; /* Darker node fill */
+            stroke: #00e5ff; /* Neon cyan stroke */
+            stroke-width: 1.5px;
+            filter: drop-shadow(0 0 3px rgba(0, 229, 255, 0.5));
+        }
+        .theme-futuristic #mermaid-output .node .label, .theme-futuristic #mermaid-output .node text {
+            fill: #e0e0ff; /* Light lavender text */
+            font-family: var(--font-futuristic);
+            text-shadow: 0 0 2px rgba(200, 200, 255, 0.5);
+        }
+        .theme-futuristic #mermaid-output .edgePath path.path {
+            stroke: #00aaff; /* Bright blue lines */
+            stroke-width: 1.5px;
+            filter: drop-shadow(0 0 2px rgba(0, 170, 255, 0.7));
+        }
+        .theme-futuristic #mermaid-output .edgeLabel {
+            background-color: #0a0f18;
+            color: #00e5ff;
+            font-family: var(--font-futuristic);
+            border: 1px solid #00aaff;
+            padding: 2px 4px;
+        }
+        .theme-futuristic #mermaid-output .arrowheadPath {
+            fill: #00aaff;
+            filter: drop-shadow(0 0 2px rgba(0, 170, 255, 0.7));
+        }
+        .theme-futuristic #mermaid-output .messageText {
+            fill: #e0e0ff;
+            font-family: var(--font-futuristic);
+        }
+         .theme-futuristic #mermaid-output .actor rect {
+             fill: #182038;
+             stroke: #00e5ff;
+             filter: drop-shadow(0 0 3px rgba(0, 229, 255, 0.5));
+        }
+        .theme-futuristic #mermaid-output .loopLine, .theme-futuristic #mermaid-output .noteRect {
+            stroke: #00aaff;
+            fill: #101828;
+        }
+        .theme-futuristic #mermaid-output .section text {
+            fill: #00e5ff;
+            font-weight: bold;
+            text-shadow: 0 0 2px #00e5ff;
+        }
+
+        /* 响应式布局 */
+        @media (max-width: 768px) {
+            .editor-container {
+                flex-direction: column;
+                height: auto; /* 允许内容决定高度 */
+            }
+            .editor-pane, .preview-pane {
+                flex-basis: 50vh; /* 每个面板占据一部分视口高度 */
+                min-height: 300px; /* 确保在小屏也有足够编辑空间 */
+            }
+            .editor-pane {
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0; /* 在垂直布局时添加底部边框 */
+            }
+            .theme-google .editor-pane { border-bottom: 1px solid #e0e0e0; }
+            .theme-apple .editor-pane { border-bottom: 1px solid #e5e5ea; }
+            .theme-futuristic .editor-pane { border-bottom: 1px solid #203050; }
+
+            header { flex-direction: column; gap: 10px; padding: 15px; }
+            .controls { flex-direction: column; align-items: stretch; gap: 10px; padding: 15px;}
+            .controls div { display: flex; flex-direction: column; }
+            .controls select, .controls button { width: 100%; box-sizing: border-box; }
+        }
+
+    </style>
+</head>
+<body class="theme-google"> <div class="app-container">
+        <header>
+            <h1>Mermaid 在线编辑器</h1>
+            <div class="theme-selector">
+                <label for="theme-switcher">选择风格:</label>
+                <select id="theme-switcher">
+                    <option value="theme-google" selected>谷歌风</option>
+                    <option value="theme-apple">苹果风</option>
+                    <option value="theme-futuristic">未来风</option>
+                </select>
+            </div>
+        </header>
+
+        <div class="controls">
+            <div>
+                <label for="example-selector">加载示例:</label>
+                <select id="example-selector">
+                    <option value="flowchart">流程图 (Flowchart)</option>
+                    <option value="sequence">序列图 (Sequence)</option>
+                    <option value="gantt">甘特图 (Gantt)</option>
+                    <option value="class">类图 (Class)</option>
+                    <option value="er">实体关系图 (ER)</option>
+                    <option value="state">状态图 (State)</option>
+                    <option value="pie">饼图 (Pie)</option>
+                    <option value="git">Git图 (Gitgraph)</option>
+                </select>
+            </div>
+            <button id="render-button" title="手动渲染图表">渲染图表</button>
+            <button id="clear-button">清空代码</button>
+            <button id="download-svg-button">下载 SVG</button>
+        </div>
+
+        <main class="editor-container">
+            <div class="editor-pane">
+                <h2>Mermaid 代码输入</h2>
+                <textarea id="mermaid-input" spellcheck="false" aria-label="Mermaid Code Input"></textarea>
+            </div>
+            <div class="preview-pane">
+                <h2>图表预览</h2>
+                <div id="mermaid-output"><p>在此处查看渲染后的图表。</p></div>
+                <div id="error-output"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>使用 <a href="https://mermaid.js.org/" target="_blank" rel="noopener noreferrer" style="color:inherit;">Mermaid.js</a> 构建</p>
+        </footer>
+    </div>
+
+    <script>
+        // 初始化 Mermaid
+        mermaid.initialize({
+            startOnLoad: false, // 我们将手动渲染
+            securityLevel: 'loose', // 'loose' 支持更多功能，如 HTML 标签；若需更高安全性可设为 'strict' 或 'antiscript'
+            theme: 'base', // 使用 'base' 主题，并通过CSS进行完全自定义样式
+            fontFamily: 'inherit', // 从 body 继承字体，以便主题切换时图表字体也随之改变
+             // 可根据需要为特定主题配置 Mermaid 内部变量，但此处主要依赖CSS覆盖
+            // themeVariables: {
+            //    primaryColor: '#ff0000', // 示例
+            // }
+        });
+
+        // 获取 DOM 元素
+        const mermaidInput = document.getElementById('mermaid-input');
+        const mermaidOutput = document.getElementById('mermaid-output');
+        const errorOutput = document.getElementById('error-output');
+        const themeSwitcher = document.getElementById('theme-switcher');
+        const exampleSelector = document.getElementById('example-selector');
+        const renderButton = document.getElementById('render-button');
+        const clearButton = document.getElementById('clear-button');
+        const downloadSvgButton = document.getElementById('download-svg-button');
+
+        let debounceTimer; // 用于输入防抖
+
+        // 示例图表代码
+        const examples = {
+            flowchart: `graph TD
+    A[圣诞节] -->|拿到压岁钱| B(去购物);
+    B --> C{让我想想};
+    C -->|方案一| D[笔记本电脑];
+    C -->|方案二| E[智能手机];
+    C -->|方案三| F[fa:fa-car 小汽车];
+    C -->|方案四✨| G(大餐一顿!);
+    G --> H{餐后甜点?};
+    H -- Yes --> I[冰淇淋];
+    H -- No --> J[回家];`,
+            sequence: `sequenceDiagram
+    participant Alice as 爱丽丝
+    participant John as 约翰
+    Alice->>+John: 你好约翰, 最近怎么样?
+    Alice->>+John: 约翰, 能听到我说话吗?
+    John-->>-Alice: 嗨爱丽丝, 我能听到!
+    John-->>-Alice: 我感觉很棒!`,
+            gantt: `gantt
+    dateFormat  YYYY-MM-DD
+    title 项目开发甘特图
+    excludes    weekends
+
+    section 设计阶段
+    需求分析      :done, des1, 2025-05-10, 7d
+    原型设计      :active, des2, after des1, 5d
+    UI/UX 设计    :         des3, after des2, 5d
+
+    section 开发阶段
+    前端开发      :         dev1, after des3, 20d
+    后端开发      :         dev2, after des3, 25d
+    API 对接     :         dev3, after dev1, 5d
+    API 对接     :         crit, after dev2, 5d
+
+    section 测试与部署
+    单元测试      :         test1, after dev3, 7d
+    集成测试      :         test2, after test1, 5d
+    上线部署      :         deploy, after test2, 3d`,
+            class: `classDiagram
+    direction LR
+    Animal <|-- Duck
+    Animal <|-- Fish
+    Animal <|-- Zebra
+    Animal : +int age
+    Animal : +String gender
+    Animal: +isMammal()
+    Animal: +mate()
+    class Duck{
+      +String beakColor
+      +swim()
+      +quack()
+    }
+    class Fish{
+      -int sizeInFeet
+      -canEat()
+    }
+    class Zebra{
+      +bool is_wild
+      +run()
+    }`,
+            er: `erDiagram
+    用户 ||--o{ 订单 : "下单"
+    订单 ||--|{ 订单项 : "包含"
+    产品 }|..|{ 订单项 : "属于"
+    用户 }|..|{ 收货地址 : "使用"
+
+    用户 {
+        string 用户ID PK
+        string 用户名
+        string 邮箱
+        string 密码
+    }
+    订单 {
+        string 订单ID PK
+        datetime 下单时间
+        string 订单状态
+        string 用户ID FK
+    }
+    订单项 {
+        string 订单项ID PK
+        string 订单ID FK
+        string 产品ID FK
+        int 数量
+        decimal 单价
+    }
+    产品 {
+        string 产品ID PK
+        string 产品名称
+        decimal 价格
+        string 描述
+    }
+    收货地址 {
+        string 地址ID PK
+        string 用户ID FK
+        string 省份
+        string 城市
+        string 详细地址
+        string 收货人
+        string 电话
+    }`,
+            state: `stateDiagram-v2
+    [*] --> Still
+    Still --> [*]
+
+    Still --> Moving
+    Moving --> Still
+    Moving --> Crash
+    Crash --> [*]`,
+            pie: `pie title 浏览器市场份额 (2025 Q1)
+    "Chrome" : 65.0
+    "Safari" : 18.5
+    "Edge" : 5.5
+    "Firefox" : 4.0
+    "Other" : 7.0`,
+            git: `gitGraph
+    commit id: "初始提交"
+    branch feature-A
+    commit id: "A1"
+    commit id: "A2"
+    checkout main
+    branch feature-B
+    commit id: "B1"
+    checkout main
+    merge feature-A id: "合并A"
+    commit id: "M1"
+    checkout feature-B
+    commit id: "B2"
+    checkout main
+    merge feature-B id: "合并B" type: REVERSE
+    commit id: "最终版本"`
+        };
+
+        // 渲染 Mermaid 图表
+        async function renderMermaidDiagram() {
+            const diagramCode = mermaidInput.value;
+            errorOutput.textContent = ''; // 清除旧的错误信息
+            mermaidOutput.innerHTML = '<div class="loading-spinner"></div>'; // 显示加载动画
+
+            if (!diagramCode.trim()) {
+                mermaidOutput.innerHTML = '<p>请输入 Mermaid 代码以开始绘图，或选择一个示例。</p>';
+                return;
+            }
+
+            try {
+                // mermaid.render(id, txt, cb, container?)
+                // 使用唯一 ID 来避免冲突，或者直接将SVG插入到指定容器
+                // const { svg, bindFunctions } = await mermaid.render('mermaid-graph-' + Date.now(), diagramCode);
+                // mermaidOutput.innerHTML = svg;
+                // if (bindFunctions) {
+                //     bindFunctions(mermaidOutput); // 绑定交互事件 (如果图表支持)
+                // }
+
+                // 或者更推荐的方式是让 Mermaid 自己找到带有 .mermaid 类的元素并渲染
+                // 但由于我们是动态生成，所以直接用 renderAPI
+                mermaidOutput.classList.add('mermaid'); // 确保 mermaid 可以识别
+                mermaidOutput.removeAttribute('data-processed'); // 允许 mermaid 重新处理
+                mermaidOutput.textContent = diagramCode; // 将代码放入容器
+
+                await mermaid.run({
+                    nodes: [mermaidOutput], // 指定要渲染的节点
+                });
+
+            } catch (e) {
+                const errorMessage = e.message || String(e);
+                errorOutput.textContent = '图表渲染错误: ' + errorMessage;
+                mermaidOutput.innerHTML = '<p style="color:red;">无法渲染图表。请检查您的 Mermaid 代码或查看控制台获取更多信息。</p>';
+                console.error("Mermaid rendering error:", e);
+            }
+        }
+
+        // 输入框内容改变时触发渲染 (带防抖)
+        mermaidInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(renderMermaidDiagram, 300); // 300ms 防抖
+        });
+
+        // 手动渲染按钮
+        renderButton.addEventListener('click', renderMermaidDiagram);
+
+        // 主题切换
+        themeSwitcher.addEventListener('change', (event) => {
+            document.body.className = ''; // 清除现有主题类
+            document.body.classList.add(event.target.value);
+            // 主题变化时，Mermaid图表样式是通过CSS类控制的，
+            // SVG本身不需要重新生成，除非Mermaid内部主题设置依赖于初始化参数
+            // 但为了确保所有样式正确应用(特别是字体继承)，重新渲染一次是稳妥的。
+            renderMermaidDiagram();
+        });
+
+        // 加载示例图表
+        exampleSelector.addEventListener('change', (event) => {
+            const selectedExampleKey = event.target.value;
+            if (examples[selectedExampleKey]) {
+                mermaidInput.value = examples[selectedExampleKey];
+                renderMermaidDiagram();
+            }
+        });
+
+        // 清空按钮
+        clearButton.addEventListener('click', () => {
+            mermaidInput.value = '';
+            mermaidOutput.innerHTML = '<p>请输入 Mermaid 代码以开始绘图，或选择一个示例。</p>';
+            errorOutput.textContent = '';
+        });
+
+        // 下载 SVG 按钮
+        downloadSvgButton.addEventListener('click', () => {
+            const svgElement = mermaidOutput.querySelector('svg');
+            if (svgElement) {
+                const serializer = new XMLSerializer();
+                let svgString = serializer.serializeToString(svgElement);
+
+                // 确保有 xmlns 属性，某些浏览器导出时可能需要
+                if (!svgString.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+                    svgString = svgString.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+                }
+                 // （可选）添加 xlink 命名空间
+                if (!svgString.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)) {
+                    svgString = svgString.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+                }
+
+                // 添加 XML 声明和 DOCTYPE 以便更好地被其他工具识别
+                svgString = '<?xml version="1.0" standalone="no"?>\r\n' + svgString;
+
+                const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const downloadLink = document.createElement("a");
+                downloadLink.href = url;
+                downloadLink.download = "mermaid-diagram.svg";
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                URL.revokeObjectURL(url); // 释放对象 URL
+            } else {
+                alert("没有可下载的图表。请先输入代码并渲染一个图表。");
+            }
+        });
+
+        // 页面加载时，默认加载第一个示例并渲染
+        function initializeApp() {
+            const initialTheme = themeSwitcher.value;
+            document.body.classList.add(initialTheme); //确保初始主题类已添加
+            mermaidInput.value = examples[exampleSelector.value] || examples.flowchart;
+            renderMermaidDiagram();
+        }
+
+        initializeApp();
+
+    </script>
+</body>
+</html>
