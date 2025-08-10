@@ -6,9 +6,9 @@ import shutil
 import threading
 
 # 全局排除设置
-EXCLUDED_FOLDERS = [".idea", ".git", ".mvn", "node_modules","runs","runs_gpu","wandb",".ven","dvclive",".cometml-runs","db_ollama_selenium_v1","db_rag_cumulative"]
-EXCLUDED_FILES = [".gitignore",".env"]
-EXCLUDED_SUFFIX = [".md", ".ico",".env"".jpg",".txt",".png",".jpeg",".JPG",".pnt"]
+EXCLUDED_FOLDERS = [".idea", ".git", ".mvn", "node_modules",".vscode","db_rag_cumulative","__pycache__"]
+EXCLUDED_FILES = [".gitignore","visdrone_viewer_yolo.py","Translate.py","get_COCO_metrice.py"]
+EXCLUDED_SUFFIX = [ ".ico",".jpg",".JPG",".json",".xml",".png",".mp4",".jpeg",".pth",",pyc",".pt"]
 
 # 多语言资源
 languages = {
@@ -121,7 +121,7 @@ class Application(tk.Tk):
                       background=[('active', '#0062cc'), ('pressed', '#0052b3')])
         
         self.title(languages[self.language]['title'])
-        self.geometry('500x500')
+        self.geometry('560x560')
         self.create_widgets()
         
         # 5分钟自动关闭程序
@@ -147,7 +147,10 @@ class Application(tk.Tk):
         
         # 标题
         header = ttk.Label(main_frame, text=languages[self.language]['title'], style='Header.TLabel')
-        header.pack(pady=(0, 20))
+        header.pack(pady=(0, 16))
+
+        # 分隔线（标题下）
+        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=10)
         
         # 语言选择
         lang_frame = ttk.Frame(main_frame)
@@ -160,6 +163,9 @@ class Application(tk.Tk):
         self.lang_combobox.pack(side=tk.LEFT)
         self.lang_combobox.bind('<<ComboboxSelected>>', self.change_language)
         
+        # 分隔线（语言选择下）
+        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=10)
+        
         # 输出路径显示
         output_frame = ttk.Frame(main_frame)
         output_frame.pack(fill=tk.X, pady=5)
@@ -168,6 +174,9 @@ class Application(tk.Tk):
         
         self.output_label = ttk.Label(output_frame, text=self.output_path, wraplength=400)
         self.output_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # 分隔线（输出路径下）
+        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=10)
         
         # 按钮区域
         btn_frame = ttk.Frame(main_frame)
@@ -184,6 +193,9 @@ class Application(tk.Tk):
         
         ttk.Button(btn_frame, text=languages[self.language]['select_read_folder'], 
                   command=self.select_read_folder, style='Accent.TButton').pack(fill=tk.X, pady=5)
+        
+        # 分隔线（按钮区域下）
+        ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=10)
         
         # 自动删除选项
         self.auto_delete_var = tk.BooleanVar(value=True)
@@ -333,7 +345,8 @@ class Application(tk.Tk):
             self.save_to_path(output_path, subfolder_text)
             all_txt_content += subfolder_text + "\n"
         
-        all_output_path = os.path.join(main_save_path, "All.txt")
+        # 生成不重名的 All 汇总文件路径：{文件夹名}_All[数字].txt
+        all_output_path = self.generate_unique_all_output_path(main_save_path, main_folder_name)
         self.save_to_path(all_output_path, all_txt_content)
         
         # 添加自动删除任务
@@ -341,6 +354,34 @@ class Application(tk.Tk):
             self.auto_delete_mgr.add_task(main_save_path)
         
         return main_save_path
+
+    def generate_unique_all_output_path(self, base_dir, base_name):
+        """为 All 汇总文件生成不重名路径
+
+        参数:
+        - base_dir: 保存目录
+        - base_name: 基础名称（通常为主文件夹名）
+
+        返回:
+        - 一个在 base_dir 下不与现有文件冲突的路径，规则为
+          {base_name}_All.txt 或 {base_name}_All{数字}.txt
+        """
+        # 期望的初始文件名：{base_name}_All.txt
+        desired_filename = f"{base_name}_All.txt"
+        candidate_path = os.path.join(base_dir, desired_filename)
+
+        # 若无重名，直接返回
+        if not os.path.exists(candidate_path):
+            return candidate_path
+
+        # 存在重名则追加数字后缀
+        index = 1
+        while True:
+            numbered_filename = f"{base_name}_All{index}.txt"
+            candidate_path = os.path.join(base_dir, numbered_filename)
+            if not os.path.exists(candidate_path):
+                return candidate_path
+            index += 1
     
     def process_folder_read(self, folder_path):
         """单层处理文件夹"""
