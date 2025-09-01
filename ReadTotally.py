@@ -6,8 +6,8 @@ import shutil
 import threading
 
 # 全局排除设置
-EXCLUDED_FOLDERS = [".idea", ".git", ".mvn", "node_modules",".vscode","db_rag_cumulative","__pycache__"]
-EXCLUDED_FILES = [".gitignore","visdrone_viewer_yolo.py","Translate.py","get_COCO_metrice.py"]
+EXCLUDED_FOLDERS = [".idea", ".git", ".mvn", "node_modules",".vscode","db_rag_cumulative","__pycache__",".venv",".cursor",".kiro"]
+EXCLUDED_FILES = [".gitignore",".env"]
 EXCLUDED_SUFFIX = [ ".ico",".jpg",".JPG",".json",".xml",".png",".mp4",".jpeg",".pth",",pyc",".pt"]
 
 # 多语言资源
