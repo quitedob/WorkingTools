@@ -8,7 +8,7 @@ import threading
 # 全局排除设置
 EXCLUDED_FOLDERS = [".idea", ".git", ".mvn", "node_modules",".vscode","db_rag_cumulative","__pycache__",".venv",".cursor",".kiro"]
 EXCLUDED_FILES = [".gitignore",".env"]
-EXCLUDED_SUFFIX = [ ".ico",".jpg",".JPG",".json",".xml",".png",".mp4",".jpeg",".pth",",pyc",".pt"]
+EXCLUDED_SUFFIX = [ ".ico",".jpg",".JPG",".json",".xml",".png",".mp4",".jpeg",".pth",".pyc",".pt"]
 
 def parse_gitignore(gitignore_path):
     """解析 .gitignore 文件，返回需要排除的文件夹、文件和后缀
@@ -35,41 +35,44 @@ def parse_gitignore(gitignore_path):
                 if not line or line.startswith('#'):
                     continue
 
-                # 处理文件夹模式（以 / 结尾或明确是文件夹）
-                if line.endswith('/') or '/' in line:
-                    # 提取文件夹名
+                # 处理通配符模式 *.ext
+                if line.startswith('*.') and line.count('*') == 1 and not line[2:].startswith('.'):
+                    suffix = '.' + line[2:].lower()  # 去掉 *，保留 .ext 并转为小写
+                    if suffix not in [s.lower() for s in EXCLUDED_SUFFIX]:  # 避免与现有冲突
+                        suffixes_to_exclude.add(suffix)
+                    continue
+
+                # 处理包含路径分隔符的模式
+                if '/' in line:
                     if line.endswith('/'):
+                        # 以 / 结尾的文件夹模式，如 build/
                         folder_name = line[:-1]
+                        if '/' in folder_name:
+                            # 路径模式，如 src/build/，提取最后一部分
+                            folder_name = folder_name.split('/')[-1]
+                        if folder_name and not folder_name.startswith('.') and '*' not in folder_name and '?' not in folder_name:
+                            folders_to_exclude.add(folder_name)
                     else:
-                        # 提取路径中的文件夹名
-                        parts = line.split('/')
-                        if parts and parts[0]:
-                            folder_name = parts[0]
-                        else:
-                            continue
+                        # 带路径的文件模式，如 logs/error.log，提取文件名
+                        file_name = line.split('/')[-1]
+                        if file_name and '.' in file_name and not file_name.startswith('.') and '*' not in file_name and '?' not in file_name:
+                            files_to_exclude.add(file_name)
+                    continue
 
-                    # 如果不是以 . 开头且不是通配符，添加到文件夹排除列表
-                    if not folder_name.startswith('.') and '*' not in folder_name and '?' not in folder_name:
-                        folders_to_exclude.add(folder_name)
+                # 处理不带路径分隔符的模式
+                if '*' in line or '?' in line:
+                    # 跳过复杂的通配符模式
+                    continue
 
-                # 处理文件模式
+                # 判断是文件夹还是文件（基于是否有扩展名）
+                if '.' in line:
+                    # 包含点，可能是文件
+                    if not line.startswith('.'):
+                        files_to_exclude.add(line)
                 else:
-                    # 如果是具体文件名
-                    if '.' in line and not line.startswith('.') and '*' not in line and '?' not in line:
-                        if '/' in line:
-                            # 路径中的文件名，提取文件名部分
-                            file_name = line.split('/')[-1]
-                            if file_name:
-                                files_to_exclude.add(file_name)
-                        else:
-                            # 直接的文件名
-                            files_to_exclude.add(line)
-
-                    # 处理后缀模式（如 *.log）
-                    elif line.startswith('*.') and '*' not in line[2:]:
-                        suffix = line[1:]  # 去掉 *，保留 .log
-                        if suffix not in EXCLUDED_SUFFIX:  # 避免与现有冲突
-                            suffixes_to_exclude.add(suffix)
+                    # 不包含点，可能是文件夹
+                    if not line.startswith('.'):
+                        folders_to_exclude.add(line)
 
     except Exception as e:
         print(f"解析 .gitignore 文件时出错: {e}")
@@ -174,6 +177,11 @@ class Application(tk.Tk):
         self.language = 'zh'
         self.output_path = os.path.join(os.path.expanduser('~'), 'Desktop')
         self.auto_delete_mgr = AutoDeleteManager()
+
+        # 临时排除集合（任务级，不修改全局常量）
+        self.temp_excluded_folders = set()
+        self.temp_excluded_files = set()
+        self.temp_excluded_suffixes = set()
         
         # 苹果风格设置
         self.style = ttk.Style()
@@ -297,9 +305,8 @@ class Application(tk.Tk):
     def update_texts(self):
         """更新界面文本"""
         self.title(languages[self.language]['title'])
-        for widget in self.winfo_children():
-            if isinstance(widget, ttk.Label) and hasattr(widget, 'original_text'):
-                widget.config(text=languages[self.language][widget.original_text])
+        # 重新创建界面组件以更新文本
+        self.create_widgets()
     
     def select_output_folder(self):
         """选择输出文件夹"""
@@ -384,14 +391,8 @@ class Application(tk.Tk):
         gitignore_path = os.path.join(folder_path, '.gitignore')
         folders_from_gitignore, files_from_gitignore, suffixes_from_gitignore = parse_gitignore(gitignore_path)
 
-        # 临时更新排除列表
-        original_excluded_folders = EXCLUDED_FOLDERS.copy()
-        original_excluded_files = EXCLUDED_FILES.copy()
-        original_excluded_suffix = EXCLUDED_SUFFIX.copy()
-
-        EXCLUDED_FOLDERS.extend(list(folders_from_gitignore))
-        EXCLUDED_FILES.extend(list(files_from_gitignore))
-        EXCLUDED_SUFFIX.extend(list(suffixes_from_gitignore))
+        # 设置临时排除集合
+        self.set_temp_exclusions(folders_from_gitignore, files_from_gitignore, suffixes_from_gitignore)
 
         try:
             files_dict = self.get_all_files(folder_path)
@@ -436,10 +437,8 @@ class Application(tk.Tk):
             return main_save_path
 
         finally:
-            # 恢复原来的排除列表
-            EXCLUDED_FOLDERS[:] = original_excluded_folders
-            EXCLUDED_FILES[:] = original_excluded_files
-            EXCLUDED_SUFFIX[:] = original_excluded_suffix
+            # 清除临时排除集合
+            self.clear_temp_exclusions()
 
     def generate_unique_all_output_path(self, base_dir, base_name):
         """为 All 汇总文件生成不重名路径
@@ -475,14 +474,8 @@ class Application(tk.Tk):
         gitignore_path = os.path.join(folder_path, '.gitignore')
         folders_from_gitignore, files_from_gitignore, suffixes_from_gitignore = parse_gitignore(gitignore_path)
 
-        # 临时更新排除列表
-        original_excluded_folders = EXCLUDED_FOLDERS.copy()
-        original_excluded_files = EXCLUDED_FILES.copy()
-        original_excluded_suffix = EXCLUDED_SUFFIX.copy()
-
-        EXCLUDED_FOLDERS.extend(list(folders_from_gitignore))
-        EXCLUDED_FILES.extend(list(files_from_gitignore))
-        EXCLUDED_SUFFIX.extend(list(suffixes_from_gitignore))
+        # 设置临时排除集合
+        self.set_temp_exclusions(folders_from_gitignore, files_from_gitignore, suffixes_from_gitignore)
 
         try:
             main_folder_name = os.path.basename(folder_path)
@@ -509,13 +502,9 @@ class Application(tk.Tk):
 
                 elif os.path.isdir(item_path):
                     content = f"Folder: {item}\n\n"
-                    for root, _, files in os.walk(item_path):
-                        dirs_to_remove = [d for d in os.listdir(root) if self.should_exclude(d)]
-                        for d in dirs_to_remove:
-                            try:
-                                _.remove(d)
-                            except:
-                                pass
+                    for root, dirs, files in os.walk(item_path):
+                        # 过滤dirs列表，移除需要排除的目录
+                        dirs[:] = [d for d in dirs if not self.should_exclude(d)]
 
                         for file in files:
                             if self.should_exclude(file):
@@ -539,18 +528,67 @@ class Application(tk.Tk):
             return main_save_path
 
         finally:
-            # 恢复原来的排除列表
-            EXCLUDED_FOLDERS[:] = original_excluded_folders
-            EXCLUDED_FILES[:] = original_excluded_files
-            EXCLUDED_SUFFIX[:] = original_excluded_suffix
-    
+            # 清除临时排除集合
+            self.clear_temp_exclusions()
+
     def should_exclude(self, name):
-        """判断是否应该排除"""
-        return (name.startswith('.') or 
-                name in EXCLUDED_FOLDERS or 
-                name in EXCLUDED_FILES or 
-                os.path.splitext(name)[1] in EXCLUDED_SUFFIX)
-    
+        """判断是否应该排除
+
+        参数:
+        - name: 文件名或路径（会自动提取basename）
+
+        返回:
+        - bool: 是否应该排除
+        """
+        # 提取basename并转为小写
+        base_name = os.path.basename(name).lower()
+
+        # 检查是否以 . 开头（隐藏文件/文件夹）
+        if base_name.startswith('.'):
+            return True
+
+        # 检查全局排除列表（小写比较）
+        if base_name in [f.lower() for f in EXCLUDED_FOLDERS]:
+            return True
+        if base_name in [f.lower() for f in EXCLUDED_FILES]:
+            return True
+
+        # 检查临时排除列表
+        if base_name in [f.lower() for f in self.temp_excluded_folders]:
+            return True
+        if base_name in [f.lower() for f in self.temp_excluded_files]:
+            return True
+
+        # 检查后缀（小写比较）
+        _, ext = os.path.splitext(base_name)
+        if ext in [s.lower() for s in EXCLUDED_SUFFIX]:
+            return True
+        if ext in [s.lower() for s in self.temp_excluded_suffixes]:
+            return True
+
+        return False
+
+    def set_temp_exclusions(self, folders=None, files=None, suffixes=None):
+        """设置临时排除集合
+
+        参数:
+        - folders: 要临时排除的文件夹集合
+        - files: 要临时排除的文件集合
+        - suffixes: 要临时排除的后缀集合
+        """
+        if folders:
+            self.temp_excluded_folders.update(folders)
+        if files:
+            self.temp_excluded_files.update(files)
+        if suffixes:
+            self.temp_excluded_suffixes.update(suffixes)
+
+    def clear_temp_exclusions(self):
+        """清除临时排除集合"""
+        self.temp_excluded_folders.clear()
+        self.temp_excluded_files.clear()
+        self.temp_excluded_suffixes.clear()
+
     def get_all_files(self, folder_path):
         """获取所有文件"""
         files_dict = {}
@@ -604,6 +642,61 @@ class Application(tk.Tk):
             print(f"Error saving file {path}: {e}")
             raise
 
+def test_gitignore_parsing():
+    """测试 .gitignore 解析功能"""
+    import tempfile
+    import os
+
+    # 创建临时目录和 .gitignore 文件
+    with tempfile.TemporaryDirectory() as temp_dir:
+        gitignore_path = os.path.join(temp_dir, '.gitignore')
+
+        # 创建测试 .gitignore 内容
+        gitignore_content = """# 注释行
+node_modules
+*.log
+*.tmp
+build/
+dist/
+.env
+package-lock.json
+__pycache__/
+*.pyc
+.DS_Store
+"""
+
+        with open(gitignore_path, 'w', encoding='utf-8') as f:
+            f.write(gitignore_content)
+
+        print("=== .gitignore 文件内容 ===")
+        with open(gitignore_path, 'r', encoding='utf-8') as f:
+            for i, line in enumerate(f, 1):
+                print(f"{i}: '{line.strip()}'")
+
+        print("\n=== 解析过程 ===")
+        # 解析 .gitignore
+        folders, files, suffixes = parse_gitignore(gitignore_path)
+
+        print("解析结果:")
+        print(f"文件夹: {sorted(folders)}")
+        print(f"文件: {sorted(files)}")
+        print(f"后缀: {sorted(suffixes)}")
+
+        # 验证结果
+        expected_folders = {'node_modules', 'build', 'dist', '__pycache__'}
+        expected_files = {'package-lock.json'}
+        expected_suffixes = {'.log', '.tmp'}  # .pyc 被跳过因为已在 EXCLUDED_SUFFIX 中
+
+        assert folders == expected_folders, f"文件夹不匹配: {folders} != {expected_folders}"
+        assert files == expected_files, f"文件不匹配: {files} != {expected_files}"
+        assert suffixes == expected_suffixes, f"后缀不匹配: {suffixes} != {expected_suffixes}"
+
+        print("✅ .gitignore 解析测试通过！")
+
 if __name__ == '__main__':
+    # 运行测试
+    test_gitignore_parsing()
+
+    # 启动GUI应用
     app = Application()
     app.mainloop()
