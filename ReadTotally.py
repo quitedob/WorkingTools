@@ -10,6 +10,72 @@ EXCLUDED_FOLDERS = [".idea", ".git", ".mvn", "node_modules",".vscode","db_rag_cu
 EXCLUDED_FILES = [".gitignore",".env"]
 EXCLUDED_SUFFIX = [ ".ico",".jpg",".JPG",".json",".xml",".png",".mp4",".jpeg",".pth",",pyc",".pt"]
 
+def parse_gitignore(gitignore_path):
+    """解析 .gitignore 文件，返回需要排除的文件夹、文件和后缀
+
+    参数:
+    - gitignore_path: .gitignore 文件路径
+
+    返回:
+    - tuple: (folders_to_exclude, files_to_exclude, suffixes_to_exclude)
+    """
+    folders_to_exclude = set()
+    files_to_exclude = set()
+    suffixes_to_exclude = set()
+
+    if not os.path.exists(gitignore_path):
+        return folders_to_exclude, files_to_exclude, suffixes_to_exclude
+
+    try:
+        with open(gitignore_path, 'r', encoding='utf-8') as file:
+            for line in file:
+                line = line.strip()
+
+                # 跳过空行和注释
+                if not line or line.startswith('#'):
+                    continue
+
+                # 处理文件夹模式（以 / 结尾或明确是文件夹）
+                if line.endswith('/') or '/' in line:
+                    # 提取文件夹名
+                    if line.endswith('/'):
+                        folder_name = line[:-1]
+                    else:
+                        # 提取路径中的文件夹名
+                        parts = line.split('/')
+                        if parts and parts[0]:
+                            folder_name = parts[0]
+                        else:
+                            continue
+
+                    # 如果不是以 . 开头且不是通配符，添加到文件夹排除列表
+                    if not folder_name.startswith('.') and '*' not in folder_name and '?' not in folder_name:
+                        folders_to_exclude.add(folder_name)
+
+                # 处理文件模式
+                else:
+                    # 如果是具体文件名
+                    if '.' in line and not line.startswith('.') and '*' not in line and '?' not in line:
+                        if '/' in line:
+                            # 路径中的文件名，提取文件名部分
+                            file_name = line.split('/')[-1]
+                            if file_name:
+                                files_to_exclude.add(file_name)
+                        else:
+                            # 直接的文件名
+                            files_to_exclude.add(line)
+
+                    # 处理后缀模式（如 *.log）
+                    elif line.startswith('*.') and '*' not in line[2:]:
+                        suffix = line[1:]  # 去掉 *，保留 .log
+                        if suffix not in EXCLUDED_SUFFIX:  # 避免与现有冲突
+                            suffixes_to_exclude.add(suffix)
+
+    except Exception as e:
+        print(f"解析 .gitignore 文件时出错: {e}")
+
+    return folders_to_exclude, files_to_exclude, suffixes_to_exclude
+
 # 多语言资源
 languages = {
     'en': {
@@ -314,46 +380,66 @@ class Application(tk.Tk):
     
     def process_all_files_folder(self, folder_path):
         """递归处理文件夹"""
-        files_dict = self.get_all_files(folder_path)
-        main_folder_name = os.path.basename(folder_path)
-        main_save_path = os.path.join(self.output_path, main_folder_name)
-        
-        os.makedirs(main_save_path, exist_ok=True)
-        
-        folder_structure = self.generate_folder_structure(folder_path)
-        self.save_to_path(os.path.join(main_save_path, "folder_structure.txt"), folder_structure)
-        
-        all_txt_content = ""
-        for subfolder, files in files_dict.items():
-            combined_content = []
-            subfolder_name = os.path.basename(subfolder)
-            combined_content.append(f"==== {subfolder_name} ====\n\n")
+        # 解析根目录的 .gitignore 文件
+        gitignore_path = os.path.join(folder_path, '.gitignore')
+        folders_from_gitignore, files_from_gitignore, suffixes_from_gitignore = parse_gitignore(gitignore_path)
+
+        # 临时更新排除列表
+        original_excluded_folders = EXCLUDED_FOLDERS.copy()
+        original_excluded_files = EXCLUDED_FILES.copy()
+        original_excluded_suffix = EXCLUDED_SUFFIX.copy()
+
+        EXCLUDED_FOLDERS.extend(list(folders_from_gitignore))
+        EXCLUDED_FILES.extend(list(files_from_gitignore))
+        EXCLUDED_SUFFIX.extend(list(suffixes_from_gitignore))
+
+        try:
+            files_dict = self.get_all_files(folder_path)
+            main_folder_name = os.path.basename(folder_path)
+            main_save_path = os.path.join(self.output_path, main_folder_name)
+
+            os.makedirs(main_save_path, exist_ok=True)
+
+            folder_structure = self.generate_folder_structure(folder_path)
+            self.save_to_path(os.path.join(main_save_path, "folder_structure.txt"), folder_structure)
+
+            all_txt_content = ""
+            for subfolder, files in files_dict.items():
+                combined_content = []
+                subfolder_name = os.path.basename(subfolder)
+                combined_content.append(f"==== {subfolder_name} ====\n\n")
             
-            for file in files:
-                if self.should_exclude(file):
-                    continue
-                
-                combined_content.append(f"---- {os.path.basename(file)} ----\n\n")
-                file_content = self.read_file_content(file)
-                if file_content:
-                    combined_content.append(file_content)
-                    combined_content.append('\n\n')
-            
-            subfolder_text = ''.join(combined_content)
-            output_filename = f"{subfolder_name}.txt"
-            output_path = os.path.join(main_save_path, output_filename)
-            self.save_to_path(output_path, subfolder_text)
-            all_txt_content += subfolder_text + "\n"
-        
-        # 生成不重名的 All 汇总文件路径：{文件夹名}_All[数字].txt
-        all_output_path = self.generate_unique_all_output_path(main_save_path, main_folder_name)
-        self.save_to_path(all_output_path, all_txt_content)
-        
-        # 添加自动删除任务
-        if self.auto_delete_var.get():
-            self.auto_delete_mgr.add_task(main_save_path)
-        
-        return main_save_path
+                for file in files:
+                    if self.should_exclude(file):
+                        continue
+
+                    combined_content.append(f"---- {os.path.basename(file)} ----\n\n")
+                    file_content = self.read_file_content(file)
+                    if file_content:
+                        combined_content.append(file_content)
+                        combined_content.append('\n\n')
+
+                subfolder_text = ''.join(combined_content)
+                output_filename = f"{subfolder_name}.txt"
+                output_path = os.path.join(main_save_path, output_filename)
+                self.save_to_path(output_path, subfolder_text)
+                all_txt_content += subfolder_text + "\n"
+
+            # 生成不重名的 All 汇总文件路径：{文件夹名}_All[数字].txt
+            all_output_path = self.generate_unique_all_output_path(main_save_path, main_folder_name)
+            self.save_to_path(all_output_path, all_txt_content)
+
+            # 添加自动删除任务
+            if self.auto_delete_var.get():
+                self.auto_delete_mgr.add_task(main_save_path)
+
+            return main_save_path
+
+        finally:
+            # 恢复原来的排除列表
+            EXCLUDED_FOLDERS[:] = original_excluded_folders
+            EXCLUDED_FILES[:] = original_excluded_files
+            EXCLUDED_SUFFIX[:] = original_excluded_suffix
 
     def generate_unique_all_output_path(self, base_dir, base_name):
         """为 All 汇总文件生成不重名路径
@@ -385,58 +471,78 @@ class Application(tk.Tk):
     
     def process_folder_read(self, folder_path):
         """单层处理文件夹"""
-        main_folder_name = os.path.basename(folder_path)
-        main_save_path = os.path.join(self.output_path, f"{main_folder_name}_read")
-        
-        os.makedirs(main_save_path, exist_ok=True)
-        folder_structure = self.generate_folder_structure(folder_path)
-        self.save_to_path(os.path.join(main_save_path, "folder_structure.txt"), folder_structure)
-        
-        for item in os.listdir(folder_path):
-            if self.should_exclude(item):
-                continue
-            
-            item_path = os.path.join(folder_path, item)
-            if os.path.isfile(item_path):
-                content = f"File: {item}\n\n"
-                file_content = self.read_file_content(item_path)
-                if file_content:
-                    content += file_content
-                
-                output_filename = f"{os.path.splitext(item)[0]}.txt"
-                output_path = os.path.join(main_save_path, output_filename)
-                self.save_to_path(output_path, content)
-            
-            elif os.path.isdir(item_path):
-                content = f"Folder: {item}\n\n"
-                for root, _, files in os.walk(item_path):
-                    dirs_to_remove = [d for d in os.listdir(root) if self.should_exclude(d)]
-                    for d in dirs_to_remove:
-                        try:
-                            _.remove(d)
-                        except:
-                            pass
-                    
-                    for file in files:
-                        if self.should_exclude(file):
-                            continue
-                        
-                        file_full_path = os.path.join(root, file)
-                        rel_path = os.path.relpath(file_full_path, item_path)
-                        content += f"File: {rel_path}\n\n"
-                        file_content = self.read_file_content(file_full_path)
-                        if file_content:
-                            content += file_content + "\n\n"
-                
-                output_filename = f"{item}.txt"
-                output_path = os.path.join(main_save_path, output_filename)
-                self.save_to_path(output_path, content)
-        
-        # 添加自动删除任务
-        if self.auto_delete_var.get():
-            self.auto_delete_mgr.add_task(main_save_path)
-        
-        return main_save_path
+        # 解析根目录的 .gitignore 文件
+        gitignore_path = os.path.join(folder_path, '.gitignore')
+        folders_from_gitignore, files_from_gitignore, suffixes_from_gitignore = parse_gitignore(gitignore_path)
+
+        # 临时更新排除列表
+        original_excluded_folders = EXCLUDED_FOLDERS.copy()
+        original_excluded_files = EXCLUDED_FILES.copy()
+        original_excluded_suffix = EXCLUDED_SUFFIX.copy()
+
+        EXCLUDED_FOLDERS.extend(list(folders_from_gitignore))
+        EXCLUDED_FILES.extend(list(files_from_gitignore))
+        EXCLUDED_SUFFIX.extend(list(suffixes_from_gitignore))
+
+        try:
+            main_folder_name = os.path.basename(folder_path)
+            main_save_path = os.path.join(self.output_path, f"{main_folder_name}_read")
+
+            os.makedirs(main_save_path, exist_ok=True)
+            folder_structure = self.generate_folder_structure(folder_path)
+            self.save_to_path(os.path.join(main_save_path, "folder_structure.txt"), folder_structure)
+
+            for item in os.listdir(folder_path):
+                if self.should_exclude(item):
+                    continue
+
+                item_path = os.path.join(folder_path, item)
+                if os.path.isfile(item_path):
+                    content = f"File: {item}\n\n"
+                    file_content = self.read_file_content(item_path)
+                    if file_content:
+                        content += file_content
+
+                    output_filename = f"{os.path.splitext(item)[0]}.txt"
+                    output_path = os.path.join(main_save_path, output_filename)
+                    self.save_to_path(output_path, content)
+
+                elif os.path.isdir(item_path):
+                    content = f"Folder: {item}\n\n"
+                    for root, _, files in os.walk(item_path):
+                        dirs_to_remove = [d for d in os.listdir(root) if self.should_exclude(d)]
+                        for d in dirs_to_remove:
+                            try:
+                                _.remove(d)
+                            except:
+                                pass
+
+                        for file in files:
+                            if self.should_exclude(file):
+                                continue
+
+                            file_full_path = os.path.join(root, file)
+                            rel_path = os.path.relpath(file_full_path, item_path)
+                            content += f"File: {rel_path}\n\n"
+                            file_content = self.read_file_content(file_full_path)
+                            if file_content:
+                                content += file_content + "\n\n"
+
+                    output_filename = f"{item}.txt"
+                    output_path = os.path.join(main_save_path, output_filename)
+                    self.save_to_path(output_path, content)
+
+            # 添加自动删除任务
+            if self.auto_delete_var.get():
+                self.auto_delete_mgr.add_task(main_save_path)
+
+            return main_save_path
+
+        finally:
+            # 恢复原来的排除列表
+            EXCLUDED_FOLDERS[:] = original_excluded_folders
+            EXCLUDED_FILES[:] = original_excluded_files
+            EXCLUDED_SUFFIX[:] = original_excluded_suffix
     
     def should_exclude(self, name):
         """判断是否应该排除"""
