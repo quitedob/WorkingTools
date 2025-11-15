@@ -6,78 +6,67 @@ import shutil
 import threading
 
 # 全局排除设置
-EXCLUDED_FOLDERS = [".idea", ".git", ".mvn", "node_modules",".vscode","db_rag_cumulative","__pycache__",".venv",".cursor",".kiro"]
+EXCLUDED_FOLDERS = [".idea", ".git","FunASR",".mvn", "node_modules",".vscode","db_rag_cumulative","__pycache__",".venv",".cursor",".kiro","target","ssl","model_cache"]
 EXCLUDED_FILES = [".gitignore",".env"]
-EXCLUDED_SUFFIX = [ ".ico",".jpg",".JPG",".json",".xml",".png",".mp4",".jpeg",".pth",".pyc",".pt"]
+EXCLUDED_SUFFIX = [ ".ico",".jpg",".JPG",".json",".xml",".png",".mp4",".jpeg",".pth",",pyc",".pt"]
 
-def parse_gitignore(gitignore_path):
-    """解析 .gitignore 文件，返回需要排除的文件夹、文件和后缀
+# 临时排除设置（从.gitignore读取）
+temp_excluded_folders = set()
+temp_excluded_files = set()
+temp_excluded_patterns = set()
 
-    参数:
-    - gitignore_path: .gitignore 文件路径
+def load_gitignore_patterns(folder_path):
+    """读取并解析.gitignore文件，更新临时排除设置"""
+    global temp_excluded_folders, temp_excluded_files, temp_excluded_patterns
 
-    返回:
-    - tuple: (folders_to_exclude, files_to_exclude, suffixes_to_exclude)
-    """
-    folders_to_exclude = set()
-    files_to_exclude = set()
-    suffixes_to_exclude = set()
+    # 清空之前的临时设置
+    temp_excluded_folders.clear()
+    temp_excluded_files.clear()
+    temp_excluded_patterns.clear()
+
+    gitignore_path = os.path.join(folder_path, '.gitignore')
 
     if not os.path.exists(gitignore_path):
-        return folders_to_exclude, files_to_exclude, suffixes_to_exclude
+        return
 
     try:
-        with open(gitignore_path, 'r', encoding='utf-8') as file:
-            for line in file:
+        with open(gitignore_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                # 去掉注释和空白
                 line = line.strip()
-
-                # 跳过空行和注释
                 if not line or line.startswith('#'):
                     continue
 
-                # 处理通配符模式 *.ext
-                if line.startswith('*.') and line.count('*') == 1 and not line[2:].startswith('.'):
-                    suffix = '.' + line[2:].lower()  # 去掉 *，保留 .ext 并转为小写
-                    if suffix not in [s.lower() for s in EXCLUDED_SUFFIX]:  # 避免与现有冲突
-                        suffixes_to_exclude.add(suffix)
-                    continue
+                # 处理.gitignore模式
+                pattern = line
 
-                # 处理包含路径分隔符的模式
-                if '/' in line:
-                    if line.endswith('/'):
-                        # 以 / 结尾的文件夹模式，如 build/
-                        folder_name = line[:-1]
-                        if '/' in folder_name:
-                            # 路径模式，如 src/build/，提取最后一部分
-                            folder_name = folder_name.split('/')[-1]
-                        if folder_name and not folder_name.startswith('.') and '*' not in folder_name and '?' not in folder_name:
-                            folders_to_exclude.add(folder_name)
-                    else:
-                        # 带路径的文件模式，如 logs/error.log，提取文件名
-                        file_name = line.split('/')[-1]
-                        if file_name and '.' in file_name and not file_name.startswith('.') and '*' not in file_name and '?' not in file_name:
-                            files_to_exclude.add(file_name)
-                    continue
+                # 移除开头的斜杠
+                if pattern.startswith('/'):
+                    pattern = pattern[1:]
 
-                # 处理不带路径分隔符的模式
-                if '*' in line or '?' in line:
-                    # 跳过复杂的通配符模式
-                    continue
-
-                # 判断是文件夹还是文件（基于是否有扩展名）
-                if '.' in line:
-                    # 包含点，可能是文件
-                    if not line.startswith('.'):
-                        files_to_exclude.add(line)
+                # 如果以斜杠结尾，可能是文件夹或带通配符的文件夹模式
+                if pattern.endswith('/'):
+                    folder_pattern = pattern.rstrip('/')
+                    if folder_pattern:
+                        # 检查是否有通配符
+                        if '*' in folder_pattern or '?' in folder_pattern or '[' in folder_pattern:
+                            temp_excluded_patterns.add(pattern)  # 保留末尾斜杠的模式
+                        else:
+                            temp_excluded_folders.add(folder_pattern)
+                # 如果包含通配符，添加到模式集合
+                elif '*' in pattern or '?' in pattern or '[' in pattern:
+                    temp_excluded_patterns.add(pattern)
+                # 如果包含路径分隔符但不以斜杠结尾，当作完整路径文件名处理
+                elif '/' in pattern:
+                    file_part = os.path.basename(pattern)
+                    if file_part:
+                        temp_excluded_files.add(file_part)
+                # 否则作为文件名处理
                 else:
-                    # 不包含点，可能是文件夹
-                    if not line.startswith('.'):
-                        folders_to_exclude.add(line)
+                    temp_excluded_files.add(pattern)
 
     except Exception as e:
-        print(f"解析 .gitignore 文件时出错: {e}")
-
-    return folders_to_exclude, files_to_exclude, suffixes_to_exclude
+        print(f"读取.gitignore文件错误: {e}")
 
 # 多语言资源
 languages = {
@@ -177,11 +166,6 @@ class Application(tk.Tk):
         self.language = 'zh'
         self.output_path = os.path.join(os.path.expanduser('~'), 'Desktop')
         self.auto_delete_mgr = AutoDeleteManager()
-
-        # 临时排除集合（任务级，不修改全局常量）
-        self.temp_excluded_folders = set()
-        self.temp_excluded_files = set()
-        self.temp_excluded_suffixes = set()
         
         # 苹果风格设置
         self.style = ttk.Style()
@@ -305,8 +289,9 @@ class Application(tk.Tk):
     def update_texts(self):
         """更新界面文本"""
         self.title(languages[self.language]['title'])
-        # 重新创建界面组件以更新文本
-        self.create_widgets()
+        for widget in self.winfo_children():
+            if isinstance(widget, ttk.Label) and hasattr(widget, 'original_text'):
+                widget.config(text=languages[self.language][widget.original_text])
     
     def select_output_folder(self):
         """选择输出文件夹"""
@@ -386,66 +371,93 @@ class Application(tk.Tk):
         return output_path
     
     def process_all_files_folder(self, folder_path):
-        """递归处理文件夹"""
-        # 解析根目录的 .gitignore 文件
-        gitignore_path = os.path.join(folder_path, '.gitignore')
-        folders_from_gitignore, files_from_gitignore, suffixes_from_gitignore = parse_gitignore(gitignore_path)
+        """递归处理文件夹，生成带行号跟踪的All.txt和folder_structure.txt"""
+        # 先读取.gitignore文件，更新排除设置
+        load_gitignore_patterns(folder_path)
 
-        # 设置临时排除集合
-        self.set_temp_exclusions(folders_from_gitignore, files_from_gitignore, suffixes_from_gitignore)
+        main_folder_name = os.path.basename(folder_path)
+        main_save_path = os.path.join(self.output_path, main_folder_name)
 
-        try:
-            files_dict = self.get_all_files(folder_path)
-            main_folder_name = os.path.basename(folder_path)
-            main_save_path = os.path.join(self.output_path, main_folder_name)
+        os.makedirs(main_save_path, exist_ok=True)
 
-            os.makedirs(main_save_path, exist_ok=True)
+        # 生成All.txt内容和行号跟踪信息
+        file_line_ranges, all_content, ai_content = self.generate_all_txt_with_line_tracking(folder_path)
 
-            folder_structure = self.generate_folder_structure(folder_path)
-            self.save_to_path(os.path.join(main_save_path, "folder_structure.txt"), folder_structure)
+        # 生成folder_structure.txt（包含行号区间）
+        folder_structure = self.generate_folder_structure(folder_path, file_line_ranges=file_line_ranges)
+        self.save_to_path(os.path.join(main_save_path, "folder_structure.txt"), folder_structure)
 
-            all_txt_content = ""
-            for subfolder, files in files_dict.items():
-                combined_content = []
-                subfolder_name = os.path.basename(subfolder)
-                combined_content.append(f"==== {subfolder_name} ====\n\n")
-            
-                for file in files:
-                    if self.should_exclude(file):
-                        continue
+        # 保存All.txt
+        all_output_path = self.generate_unique_all_output_path(main_save_path, main_folder_name)
+        self.save_to_path(all_output_path, all_content)
 
-                    combined_content.append(f"---- {os.path.basename(file)} ----\n\n")
-                    file_content = self.read_file_content(file)
-                    if file_content:
-                        combined_content.append(file_content)
-                        combined_content.append('\n\n')
+        # 保存AI版本的All.txt（压缩版）
+        ai_output_path = self.generate_unique_all_output_path(main_save_path, main_folder_name + "_AI")
+        self.save_to_path(ai_output_path, ai_content)
 
-                subfolder_text = ''.join(combined_content)
+        # 用于记录已使用的文件名，避免重名
+        used_filenames = set()
+
+        # 仍然生成单独的子文件夹文件（向后兼容）
+        files_dict = self.get_all_files(folder_path)
+        for subfolder, files in files_dict.items():
+            combined_content = []
+            subfolder_name = os.path.basename(subfolder)
+            combined_content.append(f"==== {subfolder_name} ====\n\n")
+
+            for file_path in sorted(files):  # 确保确定性顺序
+                if not self.is_text_file(file_path):
+                    # 对于非文本文件，添加占位符
+                    combined_content.append(f"---- {os.path.basename(file_path)} ----\n\n<二进制文件: {os.path.basename(file_path)}>\n\n")
+                    continue
+
+                combined_content.append(f"---- {os.path.basename(file_path)} ----\n\n")
+                file_content = self.read_file_content(file_path)
+                if file_content:
+                    combined_content.append(file_content)
+                    combined_content.append('\n\n')
+
+            subfolder_text = ''.join(combined_content)
+            # 压缩文本内容，减少空格和空行
+            subfolder_text = self.compress_for_ai(subfolder_text)
+
+            # 计算相对路径，用于生成唯一的文件名
+            rel_path = os.path.relpath(subfolder, folder_path)
+
+            # 如果相对路径不等于文件夹名，说明是嵌套文件夹，需要包含路径信息
+            if rel_path != subfolder_name:
+                # 对于嵌套文件夹，使用完整相对路径（路径分隔符替换为下划线）
+                output_filename = rel_path.replace(os.sep, '_') + '.txt'
+            else:
+                # 对于根级文件夹，直接使用文件夹名
                 output_filename = f"{subfolder_name}.txt"
-                output_path = os.path.join(main_save_path, output_filename)
-                self.save_to_path(output_path, subfolder_text)
-                all_txt_content += subfolder_text + "\n"
 
-            # 生成不重名的 All 汇总文件路径：{文件夹名}_All[数字].txt
-            all_output_path = self.generate_unique_all_output_path(main_save_path, main_folder_name)
-            self.save_to_path(all_output_path, all_txt_content)
+            # 确保文件名唯一（以防万一还有其他冲突）
+            original_filename = output_filename
+            counter = 1
+            while output_filename in used_filenames:
+                name_without_ext = original_filename.rsplit('.', 1)[0]
+                output_filename = f"{name_without_ext}_{counter}.txt"
+                counter += 1
 
-            # 添加自动删除任务
-            if self.auto_delete_var.get():
-                self.auto_delete_mgr.add_task(main_save_path)
+            # 记录已使用的文件名
+            used_filenames.add(output_filename)
 
-            return main_save_path
+            output_path = os.path.join(main_save_path, output_filename)
+            self.save_to_path(output_path, subfolder_text)
 
-        finally:
-            # 清除临时排除集合
-            self.clear_temp_exclusions()
+        # 添加自动删除任务
+        if self.auto_delete_var.get():
+            self.auto_delete_mgr.add_task(main_save_path)
+
+        return main_save_path
 
     def generate_unique_all_output_path(self, base_dir, base_name):
         """为 All 汇总文件生成不重名路径
 
         参数:
         - base_dir: 保存目录
-        - base_name: 基础名称（通常为主文件夹名）
+        - base_name: 基础名称（通常为主文件夹名，可能包含_AI后缀）
 
         返回:
         - 一个在 base_dir 下不与现有文件冲突的路径，规则为
@@ -470,166 +482,234 @@ class Application(tk.Tk):
     
     def process_folder_read(self, folder_path):
         """单层处理文件夹"""
-        # 解析根目录的 .gitignore 文件
-        gitignore_path = os.path.join(folder_path, '.gitignore')
-        folders_from_gitignore, files_from_gitignore, suffixes_from_gitignore = parse_gitignore(gitignore_path)
+        # 先读取.gitignore文件，更新排除设置
+        load_gitignore_patterns(folder_path)
 
-        # 设置临时排除集合
-        self.set_temp_exclusions(folders_from_gitignore, files_from_gitignore, suffixes_from_gitignore)
+        main_folder_name = os.path.basename(folder_path)
+        main_save_path = os.path.join(self.output_path, f"{main_folder_name}_read")
 
-        try:
-            main_folder_name = os.path.basename(folder_path)
-            main_save_path = os.path.join(self.output_path, f"{main_folder_name}_read")
-
-            os.makedirs(main_save_path, exist_ok=True)
-            folder_structure = self.generate_folder_structure(folder_path)
-            self.save_to_path(os.path.join(main_save_path, "folder_structure.txt"), folder_structure)
-
-            for item in os.listdir(folder_path):
-                if self.should_exclude(item):
-                    continue
-
-                item_path = os.path.join(folder_path, item)
-                if os.path.isfile(item_path):
-                    content = f"File: {item}\n\n"
-                    file_content = self.read_file_content(item_path)
-                    if file_content:
-                        content += file_content
-
-                    output_filename = f"{os.path.splitext(item)[0]}.txt"
-                    output_path = os.path.join(main_save_path, output_filename)
-                    self.save_to_path(output_path, content)
-
-                elif os.path.isdir(item_path):
-                    content = f"Folder: {item}\n\n"
-                    for root, dirs, files in os.walk(item_path):
-                        # 过滤dirs列表，移除需要排除的目录
-                        dirs[:] = [d for d in dirs if not self.should_exclude(d)]
-
-                        for file in files:
-                            if self.should_exclude(file):
-                                continue
-
-                            file_full_path = os.path.join(root, file)
-                            rel_path = os.path.relpath(file_full_path, item_path)
-                            content += f"File: {rel_path}\n\n"
-                            file_content = self.read_file_content(file_full_path)
-                            if file_content:
-                                content += file_content + "\n\n"
-
-                    output_filename = f"{item}.txt"
-                    output_path = os.path.join(main_save_path, output_filename)
-                    self.save_to_path(output_path, content)
-
-            # 添加自动删除任务
-            if self.auto_delete_var.get():
-                self.auto_delete_mgr.add_task(main_save_path)
-
-            return main_save_path
-
-        finally:
-            # 清除临时排除集合
-            self.clear_temp_exclusions()
-
-    def should_exclude(self, name):
-        """判断是否应该排除
-
-        参数:
-        - name: 文件名或路径（会自动提取basename）
-
-        返回:
-        - bool: 是否应该排除
-        """
-        # 提取basename并转为小写
-        base_name = os.path.basename(name).lower()
-
-        # 检查是否以 . 开头（隐藏文件/文件夹）
-        if base_name.startswith('.'):
-            return True
-
-        # 检查全局排除列表（小写比较）
-        if base_name in [f.lower() for f in EXCLUDED_FOLDERS]:
-            return True
-        if base_name in [f.lower() for f in EXCLUDED_FILES]:
-            return True
-
-        # 检查临时排除列表
-        if base_name in [f.lower() for f in self.temp_excluded_folders]:
-            return True
-        if base_name in [f.lower() for f in self.temp_excluded_files]:
-            return True
-
-        # 检查后缀（小写比较）
-        _, ext = os.path.splitext(base_name)
-        if ext in [s.lower() for s in EXCLUDED_SUFFIX]:
-            return True
-        if ext in [s.lower() for s in self.temp_excluded_suffixes]:
-            return True
-
-        return False
-
-    def set_temp_exclusions(self, folders=None, files=None, suffixes=None):
-        """设置临时排除集合
-
-        参数:
-        - folders: 要临时排除的文件夹集合
-        - files: 要临时排除的文件集合
-        - suffixes: 要临时排除的后缀集合
-        """
-        if folders:
-            self.temp_excluded_folders.update(folders)
-        if files:
-            self.temp_excluded_files.update(files)
-        if suffixes:
-            self.temp_excluded_suffixes.update(suffixes)
-
-    def clear_temp_exclusions(self):
-        """清除临时排除集合"""
-        self.temp_excluded_folders.clear()
-        self.temp_excluded_files.clear()
-        self.temp_excluded_suffixes.clear()
-
-    def get_all_files(self, folder_path):
-        """获取所有文件"""
-        files_dict = {}
-        for root, dirs, files in os.walk(folder_path):
-            dirs[:] = [d for d in dirs if not self.should_exclude(d)]
-            all_files = [os.path.join(root, f) for f in files if not self.should_exclude(f)]
-            if all_files:
-                files_dict[root] = all_files
-        return files_dict
-    
-    def generate_folder_structure(self, folder_path, indent=""):
-        """生成文件夹结构"""
-        structure = ""
+        os.makedirs(main_save_path, exist_ok=True)
+        folder_structure = self.generate_folder_structure(folder_path)
+        self.save_to_path(os.path.join(main_save_path, "folder_structure.txt"), folder_structure)
+        
         for item in os.listdir(folder_path):
             if self.should_exclude(item):
                 continue
             
             item_path = os.path.join(folder_path, item)
+            if os.path.isfile(item_path):
+                content = f"File: {item}\n\n"
+                file_content = self.read_file_content(item_path)
+                if file_content:
+                    # 压缩文件内容，减少空格和空行
+                    compressed_content = self.compress_for_ai(file_content)
+                    content += compressed_content
+
+                output_filename = f"{os.path.splitext(item)[0]}.txt"
+                output_path = os.path.join(main_save_path, output_filename)
+                self.save_to_path(output_path, content)
+            
+            elif os.path.isdir(item_path):
+                content = f"Folder: {item}\n\n"
+                for root, _, files in os.walk(item_path):
+                    dirs_to_remove = [d for d in os.listdir(root) if self.should_exclude(d)]
+                    for d in dirs_to_remove:
+                        try:
+                            _.remove(d)
+                        except:
+                            pass
+                    
+                    for file in files:
+                        if self.should_exclude(file):
+                            continue
+                        
+                        file_full_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(file_full_path, item_path)
+                        content += f"File: {rel_path}\n\n"
+                        file_content = self.read_file_content(file_full_path)
+                        if file_content:
+                            # 压缩文件内容，减少空格和空行
+                            compressed_content = self.compress_for_ai(file_content)
+                            content += compressed_content + "\n\n"
+                
+                output_filename = f"{item}.txt"
+                output_path = os.path.join(main_save_path, output_filename)
+                self.save_to_path(output_path, content)
+        
+        # 添加自动删除任务
+        if self.auto_delete_var.get():
+            self.auto_delete_mgr.add_task(main_save_path)
+        
+        return main_save_path
+    
+    def should_exclude(self, name):
+        """判断是否应该排除"""
+        import fnmatch
+
+        # 检查全局排除设置
+        if (name.startswith('.') or
+            name in EXCLUDED_FOLDERS or
+            name in EXCLUDED_FILES or
+            os.path.splitext(name)[1] in EXCLUDED_SUFFIX):
+            return True
+
+        # 检查临时排除设置（从.gitignore读取）
+        if (name in temp_excluded_folders or
+            name in temp_excluded_files):
+            return True
+
+        # 检查通配符模式
+        for pattern in temp_excluded_patterns:
+            if fnmatch.fnmatch(name, pattern):
+                return True
+
+        return False
+    
+    def get_all_files(self, folder_path):
+        """获取所有文件，确保确定性顺序"""
+        files_dict = {}
+        for root, dirs, files in os.walk(folder_path):
+            # 排序目录和文件以确保确定性顺序
+            dirs[:] = sorted([d for d in dirs if not self.should_exclude(d)])
+            all_files = [os.path.join(root, f) for f in sorted(files) if not self.should_exclude(f)]
+            if all_files:
+                files_dict[root] = all_files
+        return files_dict
+    
+    def generate_folder_structure(self, folder_path, indent="", file_line_ranges=None):
+        """生成文件夹结构，确保确定性顺序"""
+        structure = ""
+        items = sorted(os.listdir(folder_path))
+
+        for item in items:
+            if self.should_exclude(item):
+                continue
+
+            item_path = os.path.join(folder_path, item)
             if os.path.isdir(item_path):
                 structure += f"{indent}[Folder] {item}\n"
-                structure += self.generate_folder_structure(item_path, indent + "  ")
+                structure += self.generate_folder_structure(item_path, indent + "  ", file_line_ranges)
             else:
-                structure += f"{indent}[File] {item}\n"
+                # 检查是否为纯文本文件
+                if self.is_text_file(item_path):
+                    line_info = ""
+                    if file_line_ranges and item_path in file_line_ranges:
+                        start_line, end_line = file_line_ranges[item_path]
+                        line_info = f" -> All: lines {start_line}-{end_line}"
+                    structure += f"{indent}[File] {item}{line_info}\n"
+                else:
+                    structure += f"{indent}[File] {item} <二进制文件>\n"
         return structure
     
     def read_file_content(self, file_path):
-        """读取文件内容"""
+        """读取文件内容，只处理纯文本文件"""
         try:
             with open(file_path, 'r', encoding='utf-8') as file:
-                return file.read()
+                content = file.read()
+                return content
         except UnicodeDecodeError:
+            # 如果无法用utf-8解码，认为是二进制文件，返回占位符
             try:
                 with open(file_path, 'rb') as file:
                     data = file.read()
-                    return f"<Binary file: {len(data)} bytes>"
+                    return f"<二进制文件: {len(data)} 字节 - {os.path.basename(file_path)}>"
             except Exception as e:
-                print(f"Error reading file {file_path}: {e}")
-                return None
+                print(f"读取文件错误 {file_path}: {e}")
+                return f"<读取失败的文件: {os.path.basename(file_path)}>"
         except Exception as e:
-            print(f"Error reading file {file_path}: {e}")
+            print(f"读取文件错误 {file_path}: {e}")
             return None
+
+    def is_text_file(self, file_path):
+        """判断是否为纯文本文件"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                file.read(1024)  # 只读取前1024字节进行检测
+                return True
+        except UnicodeDecodeError:
+            return False
+        except Exception:
+            return False
+
+    def compress_for_ai(self, text):
+        """为AI处理压缩文本内容：删除空行，合并多重空白为单个空格"""
+        if not text:
+            return ""
+
+        # 分割为行
+        lines = text.split('\n')
+
+        # 删除空行和只包含空白的行
+        compressed_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped:  # 只保留非空行
+                # 合并行内的多重空白为单个空格
+                import re
+                compressed_line = re.sub(r'\s+', ' ', stripped)
+                compressed_lines.append(compressed_line)
+
+        # 用换行符重新连接
+        return '\n'.join(compressed_lines)
+
+    def generate_all_txt_with_line_tracking(self, folder_path):
+        """生成All.txt并跟踪每个文件的行号区间，返回(file_line_ranges, all_content, ai_content)"""
+        files_dict = self.get_all_files(folder_path)
+        file_line_ranges = {}
+        all_content_lines = []
+        current_line = 1
+
+        # 按照确定性顺序处理子文件夹
+        for subfolder in sorted(files_dict.keys()):
+            files = files_dict[subfolder]
+            subfolder_name = os.path.basename(subfolder)
+
+            # 添加子文件夹分隔符
+            separator = f"==== {subfolder_name} ====\n\n"
+            all_content_lines.append(separator)
+            current_line += separator.count('\n') + 1
+
+            # 按照确定性顺序处理文件
+            for file_path in sorted(files):
+                if not self.is_text_file(file_path):
+                    # 对于非文本文件，添加占位符
+                    placeholder = f"---- {os.path.basename(file_path)} ----\n\n<二进制文件: {os.path.basename(file_path)}>\n\n"
+                    all_content_lines.append(placeholder)
+                    file_line_ranges[file_path] = (current_line, current_line)
+                    current_line += placeholder.count('\n') + 1
+                    continue
+
+                # 记录文件起始行号
+                file_start_line = current_line
+
+                # 添加文件分隔符
+                file_header = f"---- {os.path.basename(file_path)} ----\n\n"
+                all_content_lines.append(file_header)
+                current_line += file_header.count('\n') + 1
+
+                # 读取文件内容
+                file_content = self.read_file_content(file_path)
+                if file_content:
+                    # 按行处理内容
+                    content_lines = file_content.split('\n')
+                    for line in content_lines:
+                        all_content_lines.append(line + '\n')
+                        current_line += 1
+                    # 添加文件间的分隔
+                    all_content_lines.append('\n')
+                    current_line += 1
+
+                # 记录文件结束行号
+                file_end_line = current_line - 1
+                file_line_ranges[file_path] = (file_start_line, file_end_line)
+
+        # 生成完整内容
+        all_content = ''.join(all_content_lines)
+
+        # 生成AI版本（压缩版）
+        ai_content = self.compress_for_ai(all_content)
+
+        return file_line_ranges, all_content, ai_content
     
     def save_to_path(self, path, content):
         """保存到路径"""
@@ -642,61 +722,6 @@ class Application(tk.Tk):
             print(f"Error saving file {path}: {e}")
             raise
 
-def test_gitignore_parsing():
-    """测试 .gitignore 解析功能"""
-    import tempfile
-    import os
-
-    # 创建临时目录和 .gitignore 文件
-    with tempfile.TemporaryDirectory() as temp_dir:
-        gitignore_path = os.path.join(temp_dir, '.gitignore')
-
-        # 创建测试 .gitignore 内容
-        gitignore_content = """# 注释行
-node_modules
-*.log
-*.tmp
-build/
-dist/
-.env
-package-lock.json
-__pycache__/
-*.pyc
-.DS_Store
-"""
-
-        with open(gitignore_path, 'w', encoding='utf-8') as f:
-            f.write(gitignore_content)
-
-        print("=== .gitignore 文件内容 ===")
-        with open(gitignore_path, 'r', encoding='utf-8') as f:
-            for i, line in enumerate(f, 1):
-                print(f"{i}: '{line.strip()}'")
-
-        print("\n=== 解析过程 ===")
-        # 解析 .gitignore
-        folders, files, suffixes = parse_gitignore(gitignore_path)
-
-        print("解析结果:")
-        print(f"文件夹: {sorted(folders)}")
-        print(f"文件: {sorted(files)}")
-        print(f"后缀: {sorted(suffixes)}")
-
-        # 验证结果
-        expected_folders = {'node_modules', 'build', 'dist', '__pycache__'}
-        expected_files = {'package-lock.json'}
-        expected_suffixes = {'.log', '.tmp'}  # .pyc 被跳过因为已在 EXCLUDED_SUFFIX 中
-
-        assert folders == expected_folders, f"文件夹不匹配: {folders} != {expected_folders}"
-        assert files == expected_files, f"文件不匹配: {files} != {expected_files}"
-        assert suffixes == expected_suffixes, f"后缀不匹配: {suffixes} != {expected_suffixes}"
-
-        print("✅ .gitignore 解析测试通过！")
-
 if __name__ == '__main__':
-    # 运行测试
-    test_gitignore_parsing()
-
-    # 启动GUI应用
     app = Application()
     app.mainloop()
