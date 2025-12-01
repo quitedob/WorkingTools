@@ -632,25 +632,44 @@ class Application(tk.Tk):
             return False
 
     def compress_for_ai(self, text):
-        """为AI处理压缩文本内容：删除空行，合并多重空白为单个空格"""
+        """Compact text for AI: drop banners, comment-only lines, empty rows, collapse whitespace."""
         if not text:
             return ""
 
-        # 分割为行
-        lines = text.split('\n')
+        import re
 
-        # 删除空行和只包含空白的行
-        compressed_lines = []
-        for line in lines:
-            stripped = line.strip()
-            if stripped:  # 只保留非空行
-                # 合并行内的多重空白为单个空格
-                import re
-                compressed_line = re.sub(r'\s+', ' ', stripped)
-                compressed_lines.append(compressed_line)
+        processed_lines = []
+        for raw_line in text.splitlines():
+            stripped = raw_line.strip()
+            if not stripped:
+                continue
 
-        # 用换行符重新连接
-        return '\n'.join(compressed_lines)
+            # Drop obvious visual separators like ==== or ----
+            if re.fullmatch(r'[=\-_*~]{3,}', stripped):
+                continue
+
+            # Normalize folder/file banners like "==== name ==== " or "---- name ----"
+            banner_match = re.match(r'(=|-|_){2,}\s*(.+?)\s*(=|-|_){2,}$', stripped)
+            if banner_match:
+                header = banner_match.group(2)
+                processed_lines.append(f"# {header}")
+                continue
+
+            # Remove full-line comments that are not preprocessors or shebang
+            if stripped.startswith('#') and not re.match(r'#(!|include|define|if|elif|else|endif|pragma)\b', stripped):
+                continue
+            if re.match(r'//', stripped):
+                continue
+            if re.match(r'/\*.*\*/\s*$', stripped):
+                continue
+            if stripped.startswith('-- '):
+                continue
+
+            # Collapse inline whitespace to a single space
+            compact = re.sub(r'\s+', ' ', stripped)
+            processed_lines.append(compact)
+
+        return '\n'.join(processed_lines)
 
     def generate_all_txt_with_line_tracking(self, folder_path):
         """生成All.txt并跟踪每个文件的行号区间，返回(file_line_ranges, all_content, ai_content)"""
